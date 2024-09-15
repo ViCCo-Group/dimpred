@@ -1,0 +1,13 @@
+name: dimpred
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python
+  - joblib
+  - numpy
+  - scikit-learn
+  - ipykernel
+  - pip
+  - pip:
+    - fracridge
