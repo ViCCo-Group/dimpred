@@ -20,3 +20,18 @@ A detailed how-to use this toolbox is in the making.
 ├── environment.yml
 ├── setup.py
 ```
+
+## :page_with_curl: Citation
+If you use any of this code, please cite our [associated paper](https://elifesciences.org/reviewed-preprints/105394v1) as follows:
+
+```
+@article{Kaniuth_2025,
+	author={Kaniuth, Philipp and Mahner, Florian P and Perkuhn, Jonas and Hebart, Martin N},
+	title={A high-throughput approach for the efficient prediction of perceived similarity of natural objects},
+	year={2025}, month=apr}
+	DOI={10.7554/elife.105394.1},
+	url={http://dx.doi.org/10.7554/eLife.105394.1},
+	publisher={eLife Sciences Publications, Ltd}
+}
+
+```
