@@ -7,12 +7,20 @@ In this module, all the functions doing the hard work live.
 @author: Philipp Kaniuth (kaniuth@cbs.mpg.de)
 """
 
+import re
+
 import numpy as np
-from fracridge import FracRidgeRegressorCV
+import sklearn
+from fracridge import fracridge
 from sklearn.linear_model import ElasticNetCV
 from sklearn.model_selection import RepeatedKFold
 from sklearn.multioutput import MultiOutputRegressor
 from sklearn.preprocessing import StandardScaler
+
+# scikit-learn 1.7 replaced ElasticNetCV(n_alphas=...) by ElasticNetCV(alphas=<int>)
+# and 1.9 removed n_alphas. Both give the same grid of alphas. Only the first
+# two numbers of the version are used, so that e.g. "1.7rc1" works as well.
+SKLEARN_NEW_ALPHAS = tuple(int(v) for v in re.findall(r"\d+", sklearn.__version__)[:2]) >= (1, 7)
 
 
 def load_data_from(path):
@@ -84,9 +92,11 @@ def fit_model_with(
 
     Returns
     -------
-    model : object
+    model : object or ndarray
         One statistical model fitted separately for each of multiple targets
-        with target-specific optimal hyperparameters.
+        with target-specific optimal hyperparameters. For "elastic" this is a
+        fitted MultiOutputRegressor, for "ridge" the weight matrix of shape
+        (n_units, n_targets) (see fracridge_cv).
     """
     cv = RepeatedKFold(
         n_splits=n_splits, n_repeats=n_repeats, random_state=random_state
@@ -96,10 +106,13 @@ def fit_model_with(
 
     if regularization == "elastic":
         alphas = None
+        if SKLEARN_NEW_ALPHAS:
+            alpha_grid = dict(alphas=n_alphas)
+        else:
+            alpha_grid = dict(n_alphas=n_alphas, alphas=alphas)
         base = ElasticNetCV(
             l1_ratio=l1_ratio,
-            n_alphas=n_alphas,
-            alphas=alphas,
+            **alpha_grid,
             cv=cv,
             random_state=random_state,
             fit_intercept=False,
@@ -113,24 +126,74 @@ def fit_model_with(
             model.estimators_[i].l1_ratio_ for i in range(len(model.estimators_))
         ]
     elif regularization == "ridge":
-        base = FracRidgeRegressorCV(
-            fit_intercept=False,
-            normalize=False,
-            copy_X=True,
-            tol=1e-10,
-            jit=True,
-            cv=cv,
-            scoring=None,
-        )
-        model = MultiOutputRegressor(base, n_jobs=-1)
-        model.fit(
+        # model is the weight matrix (n_units, n_targets), see fracridge_cv
+        model, _ = fracridge_cv(
             X_train_z,
             y_train_c,
             frac_grid=np.linspace(0.1, 1, (n_alphas * len(l1_ratio))),
+            cv=cv,
         )
         alphas, l1_ratios = None, None
     print("...fitted model...")
     return model, alphas, l1_ratios
+
+
+def fracridge_cv(X_train_z, y_train_c, frac_grid, cv):
+    """Fractional ridge regression with a cross-validated fraction per target.
+
+    This gives the same result as
+    ``MultiOutputRegressor(FracRidgeRegressorCV()).fit(X, y, frac_grid=...)``,
+    which is what this module used before, if cv has an integer random_state
+    (with random_state=None the old code drew different folds for each
+    target, here all targets use the same folds). It is much faster: the old
+    version passed each target separately to sklearn's GridSearchCV, which
+    fits the model once per fraction, fold and target, and every fit computes
+    a new SVD of the same X. `fracridge` itself can solve all targets and all
+    fractions from a single SVD, so here we only need one SVD per fold (e.g.
+    10 instead of about 42,000 for 66 targets, 70 fractions and 3x3 folds).
+    The held-out predictions for all fractions and targets then come from one
+    matrix product.
+
+    As in GridSearchCV, the fraction with the highest mean R^2 across folds is
+    selected for each target (the first one in case of ties), and the model is
+    then refit on all data with this fraction.
+
+    Parameters
+    ----------
+    X_train_z : ndarray
+        Column-wise z-transformed training predictor matrix.
+    y_train_c : ndarray
+        Column-wise centered targets, shape (n_images, n_targets).
+    frac_grid : array-like
+        Fractions to test.
+    cv : cross-validation generator
+        E.g. RepeatedKFold. Only its split() method is used.
+
+    Returns
+    -------
+    coef : ndarray
+        Regression weights, shape (n_units, n_targets).
+    best_frac : ndarray
+        Selected fraction for each target, shape (n_targets,).
+    """
+    frac_grid = np.asarray(frac_grid, dtype=float)
+    n_units, n_targets, n_fracs = X_train_z.shape[1], y_train_c.shape[1], len(frac_grid)
+    scores = np.zeros((n_fracs, n_targets))
+    n_folds = 0
+    for train, test in cv.split(X_train_z):
+        coef, _ = fracridge(X_train_z[train], y_train_c[train], fracs=frac_grid, tol=1e-10, jit=True)
+        coef = coef.reshape(n_units, n_fracs, n_targets)
+        # predictions of all fractions and targets at once: (n_test, n_fracs, n_targets)
+        y_hat = np.einsum("ip,pft->ift", X_train_z[test], coef)
+        y_true = y_train_c[test]
+        ss_res = ((y_true[:, None, :] - y_hat) ** 2).sum(axis=0)
+        ss_tot = ((y_true - y_true.mean(axis=0)) ** 2).sum(axis=0)
+        scores += 1 - ss_res / ss_tot  # R^2, as sklearn's default score
+        n_folds += 1
+    best = np.argmax(scores / n_folds, axis=0)
+    coef, _ = fracridge(X_train_z, y_train_c, fracs=frac_grid, tol=1e-10, jit=True)
+    coef = coef.reshape(n_units, n_fracs, n_targets)[:, best, np.arange(n_targets)]
+    return coef, frac_grid[best]
 
 
 def get_predictions_for(model, X_test_z, y_train_mean):
@@ -141,9 +204,11 @@ def get_predictions_for(model, X_test_z, y_train_mean):
 
     Parameters
     ----------
-    model : object
-        One statistical model fitted separately for each of multiple targets
-        with target-specific optimal hyperparameters.
+    model : object or ndarray
+        A fitted MultiOutputRegressor for "elastic", the weight matrix
+        (n_units, n_targets) from fracridge_cv for "ridge". Ridge models
+        saved by the earlier version of this module (e.g. the models on OSF)
+        are MultiOutputRegressor objects as well and work too.
     X_test_z : nd.array
         Test predictor matrix that had been z-transformed column-wise with
         X_train's standardizer.
@@ -155,7 +220,10 @@ def get_predictions_for(model, X_test_z, y_train_mean):
     y_predicted : nd.array
         Predictions for each target.
     """
-    y_predicted = model.predict(X_test_z) + y_train_mean
+    if isinstance(model, np.ndarray):  # ridge: weight matrix from fracridge_cv
+        y_predicted = X_test_z @ model + y_train_mean
+    else:
+        y_predicted = model.predict(X_test_z) + y_train_mean
     y_predicted[y_predicted < 0] = 0
     return y_predicted
 
@@ -261,8 +329,10 @@ def train_model_with(X, y, regularization, k_in=2, n_in=1, random_state=None):
 
     Returns
     -------
-    fitted_model : object
-        Fitted statistical model. Can be saved for later use.
+    fitted_model : object or ndarray
+        A fitted MultiOutputRegressor for "elastic", the weight matrix
+        (n_units, n_targets) from fracridge_cv for "ridge".
+        Can be saved for later use.
     """
     X_train_z, y_train_c, X_standardizer, y_train_mean = preprocess_data(X, y)
     fitted_model, alphas, l1_ratios = fit_model_with(
@@ -286,8 +356,10 @@ def predict_spose_for_new_imgset_with(fitted_model, X, y):
 
     Parameters
     ----------
-    fitted_model : object
-        Fitted statistical model.
+    fitted_model : object or ndarray
+        A fitted MultiOutputRegressor for "elastic", the weight matrix
+        (n_units, n_targets) from fracridge_cv for "ridge" (see
+        get_predictions_for).
     X : dict
         Each key holds image activations of a specific deep neural
         network model's module for a different image set. Each value is

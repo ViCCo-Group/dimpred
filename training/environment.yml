@@ -1,0 +1,17 @@
+# Environment for training (fit.py, call.py, build_models.py).
+# Tested with Python 3.11, scikit-learn 1.9.1, fracridge 2.0 (and scikit-learn 1.3.2).
+# For build_models.py, also install dimpred with feature extraction:
+#   pip install -e "..[extract]"
+name: dimpred-training
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python
+  - joblib
+  - numpy
+  - scipy
+  - scikit-learn
+  - pip
+  - pip:
+    - fracridge
