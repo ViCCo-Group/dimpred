@@ -1,0 +1,49 @@
+artificial / hard
+food-related
+animal-related
+clothing-related
+furniture-related
+plant-related / green
+outdoors-related
+transportation / dynamic
+wood-related / brown
+body part-related
+colorful
+valuable / special
+electronic / technology
+sport-related
+disc-shaped
+tool-related
+course pattern
+paper-related / text-related
+fluid-related / drink-related
+long-thin
+water-related / blue
+powdery / fine-scale pattern
+red
+feminine (stereotypically)
+bathroom-related
+black / noble
+weapon / danger-related
+instrument-related
+sky/flying-related
+spherical
+repetitiveness
+flat / patterned
+white
+thin / flat
+insects / disgusting
+stringy
+arms/legs/skin-related
+shiny/transparent
+construction-related
+fire-related
+head-related
+has beams / support
+seating-related
+container-related / hollow
+child/toy-related
+medicine-related
+has grating
+handicraft-related
+cylindrical / conical

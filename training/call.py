@@ -13,18 +13,29 @@ Alternatively `get_predicted_spose_for()` can be used from the CLI.
 @author: Philipp Kaniuth (kaniuth@cbs.mpg.de)
 """
 
+import os
 import pickle
 import sys
 
 import joblib
 import numpy as np
-from utils.utils import determine_base_path
 
-from dimpred.fit import (
+from fit import (
     load_data_from,
     predict_spose_for_new_imgset_with,
     train_model_with,
 )
+
+
+def determine_base_path():
+    """Return the folder that contains the dimpred/data/... tree.
+
+    In Philipp's original project this helper lived in utils/utils.py, which
+    was never part of this repository. Set the environment variable
+    DIMPRED_BASE_PATH to point to your data, otherwise the current folder is
+    used. The expected folder layout is described in the README.
+    """
+    return os.environ.get("DIMPRED_BASE_PATH", os.getcwd())
 
 
 def get_trained_model_for(model, module, n_dim, regularization):
