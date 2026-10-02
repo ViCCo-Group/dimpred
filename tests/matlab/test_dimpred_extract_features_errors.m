@@ -20,7 +20,9 @@
 % argument, also with spaces and quotes, and the options have to be the
 % ones of the command line tool (--model, --batch-size, --device,
 % --features-only). Python is cfg.python, or else the environment
-% variable DIMPRED_PYTHON. A shell script does not run on Windows, so the
+% variable DIMPRED_PYTHON. The fake Python also copies the model file that
+% it gets with --model, so that we can check that a model struct reaches
+% Python as it is. A shell script does not run on Windows, so the
 % tests with the fake Python are skipped there. The image files here are
 % empty, because Python never reads them.
 %
@@ -35,12 +37,14 @@
 %   runtests('test_dimpred_extract_features_errors')
 % or all MATLAB tests with run_dimpred_tests (also in 'fast' mode).
 %
-% Martin Hebart, 2026/09/30
+% Hebartlab, 2026/09/30
 %
 % See also DIMPRED_EXTRACT_FEATURES, TEST_DIMPRED_EXTRACT_FEATURES,
 %   RUN_DIMPRED_TESTS
 
 % History:
+% 2026/10/02: after review: model structs, the length of the command line
+%   in bytes, the fake Python copies the model file
 % 2026/09/30: after the second review: many images with several Python runs
 % 2026/09/30: written after review, the error tests came from
 %   test_dimpred_extract_features.m (so that they also run in 'fast' mode),
@@ -172,6 +176,30 @@ testCase.verifyEqual(model_name, 'rn50x64_49d_ridge', ['The model should be pass
 end
 
 
+%% Model given as struct
+
+function test_model_struct_without_file_is_passed(testCase)
+% A model struct made by hand, without the field file and with a name
+% that is not one of the shipped models, has to reach Python as it is, as
+% in Python, where extract_features(images, model) uses the dict it gets
+fake = make_fake_python(testCase, 'fake');
+images = make_image_files(testCase, {'a.jpg'});
+model = rmfield(dimpred_load_model('rn50x64_49d_ridge'), 'file');
+model.info.name = 'my_model';
+cfg.python = fake.python;
+verify_python_fails(testCase, @() dimpred_extract_features(images, model, cfg));
+args = arguments_after_dimpred(testCase, fake);
+testCase.assertEqual(exist(fake.model_copy, 'file'), 2, ...
+    sprintf('Python should get a model file with --model, got: %s', option_value(args, '--model')));
+saved = load(fake.model_copy);
+fields = {'weights', 'feature_mean', 'feature_scale', 'target_mean', 'labels', 'info'};
+for i_field = 1:numel(fields)
+    testCase.verifyEqual(saved.(fields{i_field}), model.(fields{i_field}), ...
+        sprintf('The model file that Python gets should hold %s of the model struct', fields{i_field}));
+end
+end
+
+
 %% Which Python is used
 
 function test_python_path_with_space(testCase)
@@ -236,17 +264,43 @@ testCase.verifyEqual(double(features), (1:n_images)', ...
 end
 
 
+function test_command_line_length_is_counted_in_bytes(testCase)
+% Linux limits the command (one argument of sh -c) to 131072 bytes. A
+% character such as U+65E5 takes 3 bytes in UTF-8, so 500 names with 60 of
+% them give fewer than 100000 characters but more than 100000 bytes, and
+% Python has to be started more than once. The fake Python stops at the
+% first call, so we check that this call did not get all images.
+fake = make_fake_python(testCase, 'fake');
+n_images = 500;
+names = arrayfun(@(i) sprintf('%04i_%s.jpg', i, repmat(char(26085), 1, 60)), (1:n_images)', 'UniformOutput', false);
+images = make_image_files(testCase, names);
+n_chars = sum(cellfun(@numel, images) + 3);
+n_bytes = sum(cellfun(@(f) numel(unicode2native(f, 'UTF-8')), images) + 3);
+testCase.assertTrue(n_chars < 100000 && n_bytes > 100000, ...
+    sprintf('The test needs fewer than 100000 characters and more than 100000 bytes, got %i and %i', n_chars, n_bytes));
+cfg.python = fake.python;
+verify_python_fails(testCase, @() dimpred_extract_features(images, [], cfg));
+args = arguments_after_dimpred(testCase, fake);
+n_given = find(startsWith(args, '--'), 1) - 1;
+testCase.verifyLessThan(n_given, n_images, sprintf(['The first Python run got all %i images (%i bytes); the ' ...
+    'command line has to be split by its length in bytes'], n_images, n_bytes));
+end
+
+
 %% Helpers
 
 function fake = make_fake_python(testCase, folder_name)
 % Shell script in a new folder of the given name that stands in for
 % Python. It adds its arguments to fake.log_file (one per line, each call
-% ends with fake.end_marker), prints fake.error_text and exits with status 1.
+% ends with fake.end_marker), copies the file given with --model to
+% fake.model_copy (dimpred_extract_features deletes its temporary files),
+% prints fake.error_text and exits with status 1.
 testCase.assumeFalse(ispc, 'The fake Python is a shell script, which does not run on Windows');
 folder = fullfile(make_temp_folder(testCase), folder_name);
 mkdir(folder);
 fake.python = fullfile(folder, 'python');
 fake.log_file = fullfile(folder, 'calls.txt');
+fake.model_copy = fullfile(folder, 'model_copy.mat');
 fake.end_marker = '=== end of call ===';
 fake.error_text = 'fake python stopped here on purpose';
 fid = fopen(fake.python, 'w');
@@ -254,6 +308,9 @@ testCase.assertGreaterThan(fid, 0, sprintf('Could not create %s', fake.python));
 fprintf(fid, '#!/bin/sh\n');
 fprintf(fid, 'for arg in "$@"; do printf ''%%s\\n'' "$arg"; done >> ''%s''\n', fake.log_file);
 fprintf(fid, 'echo ''%s'' >> ''%s''\n', fake.end_marker, fake.log_file);
+fprintf(fid, 'prev=\n');
+fprintf(fid, 'for arg in "$@"; do if [ "$prev" = --model ] && [ -f "$arg" ]; then cp "$arg" ''%s''; fi; prev=$arg; done\n', ...
+    fake.model_copy);
 fprintf(fid, 'echo ''%s'' >&2\n', fake.error_text);
 fprintf(fid, 'exit 1\n');
 fclose(fid);

@@ -5,3 +5,7 @@ build/
 dist/
 .pytest_cache/
 .DS_Store
+# large files of the AligNet conversion (training/alignet/README.md)
+training/alignet/tf_variables.npz
+training/alignet/alignet_siglip2_b.safetensors
+training/alignet/stablehlo_module.mlir

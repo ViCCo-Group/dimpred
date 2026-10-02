@@ -9,7 +9,7 @@ the network first fails with ImportError instead of the expected error.
 The same checks are in the MATLAB tests (test_dimpred_extract_features_errors.m),
 where they happen before Python is started.
 
-Martin Hebart, 2026/09/30
+Hebartlab, 2026/09/30
 
 See also: test_extract_features.py, test_find_images.py
 """

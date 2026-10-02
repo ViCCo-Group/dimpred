@@ -33,7 +33,7 @@ def find_images(folder):
         files = dimpred.find_images("my_images")
         features = dimpred.extract_features(files)
 
-    Martin Hebart, 2026/09/30
+    Hebartlab, 2026/09/30
 
     See also: extract_features
     """

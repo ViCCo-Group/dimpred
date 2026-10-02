@@ -48,7 +48,7 @@ def similarity(embedding, method="spose"):
         embedding = dimpred.predict(dimpred.extract_features(dimpred.find_images("my_images")))
         S = dimpred.similarity(embedding)
 
-    Martin Hebart, 2026/09/30
+    Hebartlab, 2026/09/30
 
     See also: predict
     """

@@ -7,7 +7,7 @@ lower case, without hidden files, as full paths, sorted by file name with a
 plain string sort (the same order as sort() in MATLAB). The tests create
 empty files in a temporary folder, because only the names matter here.
 
-Martin Hebart, 2026/09/30
+Hebartlab, 2026/09/30
 
 See also: test_extract_features.py
 """

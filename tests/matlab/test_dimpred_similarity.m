@@ -24,7 +24,7 @@
 %   runtests('test_dimpred_similarity')
 % or all MATLAB tests with run_dimpred_tests.
 %
-% Martin Hebart, 2026/09/30
+% Hebartlab, 2026/09/30
 %
 % See also DIMPRED_SIMILARITY, RUN_DIMPRED_TESTS
 

@@ -1,28 +1,34 @@
 % function [features, files] = dimpred_extract_features(images, model, cfg)
 %
 % Network features of images, as needed by dimpred_predict. The networks
-% run in Python with open_clip, which gives the same features the models
-% were trained on, so this function runs the command line tool of the
-% Python version of dimpred,
+% run in Python (AligNet with dimpred/alignet.py, the CLIP networks with
+% open_clip), which gives the same features the models were trained on, so
+% this function runs the command line tool of the Python version of
+% dimpred,
 %
 %   python -m dimpred <images> --features-only --model <model file> --out <temporary .mat file>
 %
 % and reads the features from the file that it writes. Python needs numpy,
-% scipy, torch, open_clip_torch and pillow (pip install numpy scipy torch
-% open_clip_torch pillow). The Python package dimpred itself does not have
-% to be installed: we put the dimpred repository (the folder above the
-% folder of this function) on the Python path, so that Python and MATLAB
-% use the same code and models.
+% scipy, torch, open_clip_torch, timm (1.0.15 or newer) and pillow (pip
+% install numpy scipy torch open_clip_torch "timm>=1.0.15" pillow). The
+% Python package dimpred itself does not have to be installed: we put the
+% dimpred repository (the folder above the folder of this function) on the
+% Python path, so that Python and MATLAB use the same code and models.
 %
 % In Python, each image is read with PIL, converted to RGB, preprocessed as
-% the network expects it (for RN50x64: resize to 448 px and center crop,
-% for ViT-B/32: 224 px), and passed through the image encoder of the
-% network (open_clip, encode_image, in float32). The features are the
-% output of the image encoder, not normalized, as used for training the
-% models. The network is set by the model (model.info.network), so the
-% features always fit the model you use for dimpred_predict. Unlike
-% extract_features in Python, there is no option for another network or
-% other pretrained weights: the network always comes from the model file.
+% the network expects it (AligNet SigLIP2-B: the whole image resized to
+% 224 x 224; RN50x64: resize to 448 px and center crop; ViT-B/32: 224 px),
+% and passed through the network in float32. The features are pre_logits
+% for AligNet and the output of the image encoder for the CLIP networks,
+% not normalized, as used for training the models. The first time AligNet
+% is used, Python downloads its weights (378 MB, into ~/.cache/dimpred);
+% if you cannot download them there, set the environment variable
+% DIMPRED_ALIGNET_WEIGHTS to the path of alignet_siglip2_b.safetensors
+% (setenv in MATLAB is passed on to Python). The network is set by the
+% model (model.info.network), so the features always fit the model you use
+% for dimpred_predict. Unlike extract_features in Python, there is no option
+% for another network or other pretrained weights: the network always comes
+% from the model.
 %
 % Folders are not accepted, list their images with dimpred_find_images
 % first. In this way, row i of the features always belongs to file i. All
@@ -37,10 +43,9 @@
 %   images: cell array of image files, or one file as text
 %   model:  model name, path of a model file, or a model from
 %           dimpred_load_model; its network is used (default: [], the
-%           default model vitb32_66d_elastic with the network
-%           ViT-B-32-quickgelu). For a model struct, Python only gets
-%           model.file and reads the network from there, so a network
-%           changed by hand in model.info is not used.
+%           default model alignet_siglip2b_66d_ridge with the network
+%           AligNet SigLIP2-B). Python gets a model struct as it is,
+%           also if it was changed or made by hand.
 %   cfg:    optional struct with the fields
 %     cfg.python:     Python program, e.g. '/home/me/envs/dimpred/bin/python'
 %                     (default: the environment variable DIMPRED_PYTHON if
@@ -49,12 +54,13 @@
 %                     of these that is available). Different devices give
 %                     slightly different features (differences of about 1e-4).
 %     cfg.batch_size: number of images passed through the network at once
-%                     (default: 32); use less if you run out of memory
+%                     (default: 32); use a smaller value if you run out of
+%                     memory
 %
 % Output:
 %   features: single, n_images x n_features (one row per image, in the
-%             order of images; RN50x64: 1024 features, ViT-B-32-quickgelu:
-%             512)
+%             order of images; AligNet SigLIP2-B: 768 features, RN50x64:
+%             1024, ViT-B-32-quickgelu: 512)
 %   files:    the given image files as a cell column (file i belongs to
 %             row i of the features)
 %
@@ -64,11 +70,15 @@
 %   features = dimpred_extract_features(files, 'rn50x64_49d_ridge', cfg);
 %   embedding = dimpred_predict(features, 'rn50x64_49d_ridge');
 %
-% Martin Hebart, 2026/09/30
+% Hebartlab, 2026/09/30
 %
 % See also DIMPRED_FIND_IMAGES, DIMPRED_PREDICT, DIMPRED_LOAD_MODEL
 
 % History:
+% 2026/10/02: after review: a model struct reaches Python as it is; the
+%   length of the command line is counted in bytes; trailing backslashes
+%   on Windows
+% 2026/10/02: new default model alignet_siglip2b_66d_ridge (help text, timm version, error message)
 % 2026/09/30: written for the first release of the package
 
 function [features, files] = dimpred_extract_features(images, model, cfg)
@@ -94,19 +104,21 @@ end
 
 % Model (an unknown model gives an error here, before Python is started).
 % Python gets the model as the path of its file, which also works for model
-% files outside of dimpred/models, and reads the network from that file.
-% For a model struct we load its file again, so that the network printed
-% below is the one Python uses, also if model.info was changed by hand.
+% files outside of dimpred/models, and reads the network from that file. A
+% model struct is saved to a temporary file below, so that Python uses it
+% as it is, also if it was changed by hand or has no file (as
+% extract_features in Python with a model dict).
 if ~exist('model', 'var'), model = []; end
-if isstruct(model) && isfield(model, 'file') && ~isempty(model.file)
-    model = model.file;
+model_variables = {'weights', 'feature_mean', 'feature_scale', 'target_mean', 'labels', 'info'};
+model_is_struct = isstruct(model);
+if model_is_struct
+    missing = model_variables(~isfield(model, model_variables));
+    if ~isempty(missing)
+        error('dimpred:inconsistentModel', 'The model struct has no field %s (see help dimpred_load_model).', ...
+            strjoin(missing, ', '))
+    end
 end
 model = dimpred_load_model(model);
-if isfield(model, 'file') && ~isempty(model.file)
-    model_arg = model.file;
-else
-    model_arg = model.info.name; % a model struct made by hand, without file
-end
 
 % Set defaults
 if ~exist('cfg', 'var') || isempty(cfg), cfg = struct; end
@@ -148,17 +160,27 @@ end
 out_folder = tempname;
 mkdir(out_folder);
 remove_out_folder = onCleanup(@() rmdir(out_folder, 's'));
+if model_is_struct
+    model_file = fullfile(out_folder, 'model.mat');
+    save(model_file, '-struct', 'model', model_variables{:}, '-v7');
+else
+    model_file = model.file;
+end
 
 % Split the images into parts that fit into one command. A command can
 % have at most 8191 characters on Windows and 128 kB on Linux (macOS
-% allows more). Each part starts Python and loads the network again.
-if ispc, max_chars = 6000; else, max_chars = 100000; end
+% allows more). Linux counts bytes, and a character such as a Chinese one
+% takes 3 bytes in UTF-8, so we count bytes (on Windows, this gives
+% smaller parts than needed). Each part starts Python and loads the
+% network again.
+if ispc, max_bytes = 6000; else, max_bytes = 100000; end
 quoted_files = cellfun(@quote, full_files, 'UniformOutput', false);
-part = 1 + floor(cumsum(cellfun(@numel, quoted_files) + 1) / max_chars);
+n_bytes = cellfun(@(arg) numel(unicode2native(arg, 'UTF-8')), quoted_files);
+part = 1 + floor(cumsum(n_bytes + 1) / max_bytes);
 parts = unique(part);
 
 % Options of the command line tool, the same for all parts
-options = [' --features-only --model ' quote(model_arg) sprintf(' --batch-size %i', cfg.batch_size)];
+options = [' --features-only --model ' quote(model_file) sprintf(' --batch-size %i', cfg.batch_size)];
 if ~isempty(cfg.device)
     options = [options ' --device ' quote(cfg.device)];
 end
@@ -188,7 +210,8 @@ for i_part = 1:numel(parts)
     if status ~= 0 || exist(out_file, 'file') ~= 2
         error('dimpred:pythonFailed', ['Feature extraction in Python failed (exit status %i, Python: %s). ' ...
             'cfg.python or the environment variable DIMPRED_PYTHON has to be a Python with numpy, scipy, ' ...
-            'torch, open_clip_torch and pillow. Python printed:\n%s'], status, cfg.python, strtrim(output))
+            'torch, open_clip_torch, timm (1.0.15 or newer) and pillow. Python printed:\n%s'], status, ...
+            cfg.python, strtrim(output))
     end
     result = load(out_file, 'features');
     if size(result.features, 1) ~= nnz(in_part)
@@ -213,9 +236,12 @@ end
 
 function arg = quote(arg)
 % Quotes arg for the command line, so that it arrives in Python as one
-% argument, unchanged, also with spaces, quotes or & in it
+% argument, unchanged, also with spaces, quotes or & in it. On Windows,
+% backslashes at the end are doubled, because \" would be read as a quote
+% (as subprocess.list2cmdline in Python does it); cmd.exe still replaces
+% %NAME% by the environment variable NAME.
 if ispc
-    arg = ['"' arg '"']; % names on Windows cannot contain "
+    arg = ['"' regexprep(arg, '(\\+)$', '$1$1') '"']; % names on Windows cannot contain "
 else
     arg = ['''' strrep(arg, '''', '''\''''') '''']; % in single quotes, each ' becomes '\''
 end

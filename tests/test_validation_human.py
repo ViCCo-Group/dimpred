@@ -10,7 +10,7 @@ similarity together on the task that DimPred is used for. That the
 comparison with humans would find images in the wrong order is shown in
 test_fixtures.py.
 
-Martin Hebart, 2026/09/30
+Hebartlab, 2026/09/30
 
 See also: test_predict.py, test_similarity.py, test_fixtures.py
 """

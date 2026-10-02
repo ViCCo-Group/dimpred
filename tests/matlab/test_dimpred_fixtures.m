@@ -25,11 +25,13 @@
 %   runtests('test_dimpred_fixtures')
 % or all MATLAB tests with run_dimpred_tests.
 %
-% Martin Hebart, 2026/09/30
+% Hebartlab, 2026/09/30
 %
 % See also RUN_DIMPRED_TESTS
 
 % History:
+% 2026/10/02: %#ok for iscellstr, which checks for cell arrays on purpose
+% 2026/10/02: AligNet SigLIP2-B features and the model alignet_siglip2b_66d_ridge
 % 2026/09/30: after review: text variables are cells of text, published
 %   predictions equal expected_rn50x64_49d_ridge, CC0 images differ, not
 %   too many zeros, r with human similarity of at least 0.80 for every
@@ -67,6 +69,7 @@ ref = testCase.TestData.ref;
 expected = {
     'features_rn50x64',                [168 1024]
     'features_vitb32',                 [168 512]
+    'features_alignet',                [168 768]
     'files',                           [168 1]
     'image_set',                       [168 1]
     'published_rn50x64_49d_ridge',     [168 49]
@@ -74,11 +77,13 @@ expected = {
     'expected_rn50x64_66d_elastic',    [168 66]
     'expected_rn50x64_66d_ridge',      [168 66]
     'expected_vitb32_66d_elastic',     [168 66]
+    'expected_alignet_siglip2b_66d_ridge', [168 66]
     'human_similarity_48nonref',       [48 48]
     'human_r_48nonref',                [1 1]
     'cc0_files',                       [3 1]
     'cc0_features_rn50x64',            [3 1024]
     'cc0_features_vitb32',             [3 512]
+    'cc0_features_alignet',            [3 768]
     'cc0_published_rn50x64_49d_ridge', [3 49]
     };
 for i_var = 1:size(expected, 1)
@@ -92,9 +97,10 @@ end
 
 function test_numbers_are_finite(testCase)
 ref = testCase.TestData.ref;
-names = {'features_rn50x64', 'features_vitb32', 'published_rn50x64_49d_ridge', ...
+names = {'features_rn50x64', 'features_vitb32', 'features_alignet', 'published_rn50x64_49d_ridge', ...
     'expected_rn50x64_49d_ridge', 'expected_rn50x64_66d_elastic', 'expected_rn50x64_66d_ridge', ...
-    'expected_vitb32_66d_elastic', 'cc0_features_rn50x64', 'cc0_features_vitb32', 'cc0_published_rn50x64_49d_ridge'};
+    'expected_vitb32_66d_elastic', 'expected_alignet_siglip2b_66d_ridge', 'cc0_features_rn50x64', ...
+    'cc0_features_vitb32', 'cc0_features_alignet', 'cc0_published_rn50x64_49d_ridge'};
 for i_var = 1:numel(names)
     values = ref.(names{i_var});
     testCase.verifyTrue(isnumeric(values) && all(isfinite(values(:))), ...
@@ -106,7 +112,8 @@ function test_text_variables_are_cells_of_text(testCase)
 ref = testCase.TestData.ref;
 names = {'files', 'image_set', 'cc0_files'};
 for i_var = 1:numel(names)
-    testCase.verifyTrue(iscellstr(ref.(names{i_var})), ...
+    is_text = iscellstr(ref.(names{i_var})); %#ok<ISCLSTR> on purpose: cell arrays, not strings
+    testCase.verifyTrue(is_text, ...
         sprintf('Variable %s should be a cell array of text', names{i_var}));
 end
 end
@@ -166,7 +173,7 @@ function test_predictions_are_not_mostly_zero(testCase)
 % without target_mean gives about 70% zeros, so we require less than 40%.
 ref = testCase.TestData.ref;
 names = {'published_rn50x64_49d_ridge', 'expected_rn50x64_49d_ridge', 'expected_rn50x64_66d_elastic', ...
-    'expected_rn50x64_66d_ridge', 'expected_vitb32_66d_elastic'};
+    'expected_rn50x64_66d_ridge', 'expected_vitb32_66d_elastic', 'expected_alignet_siglip2b_66d_ridge'};
 for i_var = 1:numel(names)
     values = ref.(names{i_var});
     zero_fraction = mean(values(:) == 0);
@@ -177,13 +184,15 @@ end
 
 function test_human_r_of_all_models(testCase)
 % Each shipped model should predict human similarity at least about as
-% well as the model of the DimPred paper (r = 0.810; the rebuilt models
-% reach 0.82 to 0.83). The human data are independent of the model files,
+% well as the model of the DimPred paper (r = 0.810; the rebuilt CLIP
+% models reach 0.82 to 0.83, the AligNet model 0.86). The human data are
+% independent of the model files,
 % so this catches model files that are wrong but consistent with
 % themselves: without target_mean, r drops to 0.76-0.78, without the
 % scaling of the features to 0.70-0.77.
 human_r = testCase.TestData.ref.human_r_48nonref;
-names = {'rn50x64_49d_ridge'; 'rn50x64_66d_elastic'; 'rn50x64_66d_ridge'; 'vitb32_66d_elastic'};
+names = {'alignet_siglip2b_66d_ridge'; 'rn50x64_49d_ridge'; 'rn50x64_66d_elastic'; 'rn50x64_66d_ridge'; ...
+    'vitb32_66d_elastic'};
 for i_model = 1:numel(names)
     name = names{i_model};
     testCase.verifyTrue(isfield(human_r, name), sprintf('human_r_48nonref has no value for model %s', name));
@@ -230,7 +239,7 @@ function test_cc0_features_differ_between_images(testCase)
 % images have clearly different features. The tests require r > 0.99999
 % with the right row, different images here correlate about 0.4 to 0.5.
 ref = testCase.TestData.ref;
-names = {'cc0_features_rn50x64', 'cc0_features_vitb32'};
+names = {'cc0_features_rn50x64', 'cc0_features_vitb32', 'cc0_features_alignet'};
 for i_var = 1:numel(names)
     r = corrcoef(ref.(names{i_var})'); % between images
     r_between = r(~eye(size(r)));

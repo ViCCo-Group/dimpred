@@ -12,7 +12,7 @@ the matlab program), then in /Applications/MATLAB_*/bin/matlab, then on the
 system path. If it is not found, all tests here are skipped. Starting MATLAB
 takes about 20 s.
 
-Martin Hebart, 2026/09/30
+Hebartlab, 2026/09/30
 
 See also: tests/matlab
 """
@@ -23,6 +23,7 @@ import shutil
 import subprocess
 import sys
 
+import numpy as np
 import pytest
 
 import dimpred
@@ -30,6 +31,8 @@ from helpers import (DEFAULT_MODEL, IMAGES, MATLAB_CODE, MATLAB_TESTS, MODEL_NAM
                      assert_close, assert_features_match, features_for, load_mat, output_of, python_env)
 
 # History:
+# 2026/10/02: dimpred_rise in MATLAB gives the maps of dimpred.rise in Python
+# 2026/10/02: AligNet features for the new default model alignet_siglip2b_66d_ridge
 # 2026/09/30: the extraction order test uses a second unsorted order
 # 2026/09/30: written together with the tests, before the package code
 
@@ -112,6 +115,8 @@ for i = 1:numel(out.names)
     model = dimpred_load_model(name);
     if strcmp(model.info.network, 'RN50x64')
         features = ref.features_rn50x64;
+    elseif strcmp(model.info.network, 'AligNet SigLIP2-B')
+        features = ref.features_alignet;
     else
         features = ref.features_vitb32;
     end
@@ -120,7 +125,7 @@ for i = 1:numel(out.names)
     out.(['similarity_' name]) = dimpred_similarity(out.(['embedding_' name])(rows, :));
 end
 out.embedding_by_name = dimpred_predict(ref.features_rn50x64, 'rn50x64_49d_ridge');
-out.embedding_default = dimpred_predict(ref.features_vitb32);
+out.embedding_default = dimpred_predict(ref.features_alignet);
 out.similarity_dot = dimpred_similarity(ref.expected_rn50x64_49d_ridge(1:10, :), 'dot');
 out.found_images = dimpred_find_images('{IMAGES}');
 save('{out_file}', '-struct', 'out');
@@ -205,3 +210,43 @@ save('{out_file}', 'features', 'files');
     names = [os.path.basename(f) for f in out["files"]]
     assert names == [os.path.basename(p) for p in paths], f"files returned by MATLAB: {names}"
     assert_features_match(out["features"], ref["cc0_features_vitb32"][rows], "features extracted from MATLAB")
+
+
+# --- heatmaps from MATLAB (calls the Python command line tool)
+
+def test_matlab_rise_gives_the_maps_of_python(tmp_path, cc0_paths, open_clip_available):
+    # A small network, 20 masks and the cpu, so the maps are noisy, but MATLAB
+    # and Python have to give the same numbers. The image is not square
+    # (ViT-B/32 sees its central square), and the maps are compared value by
+    # value, so maps or views that are transposed or flipped in MATLAB fail.
+    from PIL import Image
+
+    image = str(tmp_path / "wide image.png")
+    Image.open(cc0_paths[0]).convert("RGB").crop((0, 0, 1080, 720)).save(image)
+    model, n_masks = "vitb32_66d_elastic", 20
+    out_file = str(tmp_path / "matlab_rise.mat")
+    script = f"""
+addpath('{MATLAB_CODE}');
+cfg = struct();
+cfg.python = '{sys.executable}';
+cfg.n_masks = {n_masks};
+cfg.device = 'cpu';
+result = dimpred_rise('{image}', '{model}', cfg);
+save('{out_file}', '-struct', 'result', '-v7');
+"""
+    assert_matlab_success(run_matlab(script, str(tmp_path)))
+    matlab = load_mat(out_file)
+    python = dimpred.rise([image], model, n_masks=n_masks, device="cpu")
+
+    # load_mat removes the singleton dimension of the one image
+    for key in ["relevance", "dimension_maps", "embedding"]:
+        assert_close(np.reshape(matlab[key], python[key].shape), python[key], 1e-5,
+                     f"rise {key}: MATLAB vs Python")
+    assert np.array_equal(np.reshape(matlab["view"], python["view"].shape), python["view"]), (
+        "rise view: MATLAB vs Python")
+    assert matlab["labels"] == python["labels"], "rise labels: MATLAB vs Python"
+    assert matlab["files"] == [image], f"rise files in MATLAB: {matlab['files']}"
+    assert matlab["model"] == python["model"] == model, f"rise model: {matlab['model']!r} vs {python['model']!r}"
+    for key, value in python["settings"].items():
+        assert np.array_equal(np.ravel(matlab["settings"][key]), np.ravel(value)), (
+            f"rise settings.{key}: {matlab['settings'][key]!r} in MATLAB, {value!r} in Python")

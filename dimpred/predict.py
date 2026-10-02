@@ -43,7 +43,7 @@ def predict(features, model=None):
         features = dimpred.extract_features(dimpred.find_images("my_images"))
         embedding = dimpred.predict(features)
 
-    Martin Hebart, 2026/09/30
+    Hebartlab, 2026/09/30
 
     See also: load_model, extract_features, similarity
     """

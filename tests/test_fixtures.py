@@ -4,11 +4,11 @@ Tests of the test fixtures themselves (tests/fixtures).
 All other tests compare dimpred against the numbers in these files, so we
 first check that the files contain what make_fixtures.py writes: the right
 variables and shapes, one entry per shipped model, image files that exist,
-features of the two networks that belong to the same images in the same row
-order, and expected predictions and human similarity that fit together.
+features of the three networks that belong to the same images in the same
+row order, and expected predictions and human similarity that fit together.
 These tests do not use dimpred at all.
 
-Martin Hebart, 2026/09/30
+Hebartlab, 2026/09/30
 
 See also: fixtures/make_fixtures.py
 """
@@ -23,6 +23,7 @@ from helpers import (CC0_REORDERED, IMAGES, MODEL_NAMES, MODELS, MODELS_DIR, ORI
                      spose_similarity_by_definition)
 
 # History:
+# 2026/10/02: AligNet SigLIP2-B features (features_alignet, cc0_features_alignet)
 # 2026/09/30: checks that the MATLAB tests of the fixtures already had
 #   (unique names, different CC0 features, published = expected predictions,
 #   human r of at least 0.80, not mostly zeros, one entry per model file);
@@ -35,6 +36,8 @@ IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp")
 FIXED_SHAPES = {
     "features_rn50x64": (168, 1024),
     "features_vitb32": (168, 512),
+    "features_alignet": (168, 768),
+    "cc0_features_alignet": (3, 768),
     "published_rn50x64_49d_ridge": (168, 49),
     "human_similarity_48nonref": (48, 48),
     "cc0_features_rn50x64": (3, 1024),
@@ -110,8 +113,9 @@ def test_human_correlation_is_given_for_each_model(ref):
 @pytest.mark.parametrize("name", MODEL_NAMES)
 def test_human_correlation_of_each_model_is_at_least_0_80(ref, name):
     # Each shipped model predicts human similarity at least about as well as
-    # the model of the DimPred paper (r = 0.810; the rebuilt models reach
-    # 0.82 to 0.83). The human data do not depend on the model files, so this
+    # the model of the DimPred paper (r = 0.810; the rebuilt CLIP models
+    # reach 0.82 to 0.83, the AligNet model 0.86). The human data do not
+    # depend on the model files, so this
     # finds model files that are wrong but consistent with the expected
     # predictions: without target_mean, r drops to 0.76-0.78, with wrong
     # feature statistics to about 0.65-0.75.
@@ -179,7 +183,7 @@ def test_second_cc0_order_is_neither_sorted_nor_the_order_of_cc0_files(ref):
     assert reordered != ref["cc0_files"], f"{reordered} is the order of cc0_files"
 
 
-@pytest.mark.parametrize("variable", ["cc0_features_rn50x64", "cc0_features_vitb32"])
+@pytest.mark.parametrize("variable", ["cc0_features_rn50x64", "cc0_features_vitb32", "cc0_features_alignet"])
 def test_cc0_features_differ_clearly_between_images(ref, variable):
     # The order tests can only tell the rows apart if the images have clearly
     # different features. They require r > 0.99999 with the right row;
@@ -188,30 +192,37 @@ def test_cc0_features_differ_clearly_between_images(ref, variable):
     assert r.max() < 0.9, f"two CC0 images have almost the same {variable} (r = {r.max():.4f})"
 
 
-def test_rows_of_both_networks_belong_to_the_same_images(ref):
-    # The RN50x64 and ViT features come from different sources. If both sets
-    # are in the same image order, the 66d predictions of the two networks
+# Pairs of models of different networks, to check that the features of the
+# networks are in the same image order
+OTHER_NETWORKS = ["vitb32_66d_elastic", "alignet_siglip2b_66d_ridge"]
+
+
+@pytest.mark.parametrize("other", OTHER_NETWORKS)
+def test_rows_of_the_networks_belong_to_the_same_images(ref, other):
+    # The RN50x64, ViT and AligNet features come from different sources. If
+    # they are in the same image order, the 66d predictions of two networks
     # should be most similar for the same image. For the 48nonref images
     # (48 different objects) this is true for every image when the order is
     # right, and for about 1 in 48 when it is not.
     rn = ref["expected_rn50x64_66d_elastic"][:48]
-    vit = ref["expected_vitb32_66d_elastic"][:48]
-    r = np.corrcoef(rn, vit)[:48, 48:]  # r[i, j]: RN50x64 image i vs ViT image j
+    predicted = ref["expected_" + other][:48]
+    r = np.corrcoef(rn, predicted)[:48, 48:]  # r[i, j]: RN50x64 image i vs other image j
     same_row_best = np.mean(np.argmax(r, axis=1) == np.arange(48))
     assert same_row_best >= 0.9, (
-        f"only {same_row_best:.0%} of the 48nonref images are predicted most similarly by both networks "
-        f"at the same row, so features_rn50x64 and features_vitb32 are probably not in the same image order")
+        f"only {same_row_best:.0%} of the 48nonref images are predicted most similarly by RN50x64 and {other} "
+        f"at the same row, so their features are probably not in the same image order")
 
 
-def test_rows_of_both_networks_agree_for_all_images(ref):
+@pytest.mark.parametrize("other", OTHER_NETWORKS)
+def test_rows_of_the_networks_agree_for_all_images(ref, other):
     # the 120 Peterson animals are all similar to each other, so here we only
     # check that the same image agrees much better than two different images
     rn = ref["expected_rn50x64_66d_elastic"]
-    vit = ref["expected_vitb32_66d_elastic"]
-    same = row_correlations(rn, vit).mean()
-    other = row_correlations(rn, np.roll(vit, 1, axis=0)).mean()
-    assert same > other + 0.2, (
-        f"mean r same image {same:.3f}, neighboring rows {other:.3f}; expected a clear difference")
+    predicted = ref["expected_" + other]
+    same = row_correlations(rn, predicted).mean()
+    different = row_correlations(rn, np.roll(predicted, 1, axis=0)).mean()
+    assert same > different + 0.2, (
+        f"{other}: mean r same image {same:.3f}, neighboring rows {different:.3f}; expected a clear difference")
 
 
 # --- expected predictions and human similarity

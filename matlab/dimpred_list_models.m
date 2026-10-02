@@ -3,7 +3,8 @@
 % Names of the models that come with dimpred. Each model is a .mat file in
 % the folder dimpred/models of the repository, and its name is the file
 % name without .mat. Any of these names can be passed as model to
-% dimpred_load_model, dimpred_predict and dimpred_extract_features.
+% dimpred_load_model, dimpred_predict, dimpred_extract_features and
+% dimpred_rise.
 %
 % The models are found relative to the folder of this function (in
 % ../dimpred/models), not relative to the current folder. For this reason,
@@ -15,8 +16,8 @@
 %
 % Output:
 %   names: cell column with the names of the models, sorted alphabetically,
-%          e.g. {'rn50x64_49d_ridge'; 'rn50x64_66d_elastic'; ...
-%                'rn50x64_66d_ridge'; 'vitb32_66d_elastic'}
+%          e.g. {'alignet_siglip2b_66d_ridge'; 'rn50x64_49d_ridge'; ...
+%                'rn50x64_66d_elastic'; 'rn50x64_66d_ridge'; 'vitb32_66d_elastic'}
 %
 % Example:
 %   names = dimpred_list_models;
@@ -25,11 +26,13 @@
 %       fprintf('%s: %s\n', names{i_model}, model.info.note)
 %   end
 %
-% Martin Hebart, 2026/09/30
+% Hebartlab, 2026/09/30
 %
 % See also DIMPRED_LOAD_MODEL
 
 % History:
+% 2026/10/02: dimpred_rise in the help text
+% 2026/10/02: new model alignet_siglip2b_66d_ridge in the help text
 % 2026/09/30: written for the first release of the package
 
 function names = dimpred_list_models
