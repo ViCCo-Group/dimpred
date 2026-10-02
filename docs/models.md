@@ -83,7 +83,9 @@ THINGS odd-one-out data, use `vitb32_66d_elastic`.
 the 66 dimensions, 10 folds): 0.810 for `alignet_siglip2b_66d_ridge` and
 0.779 for `rn50x64_66d_ridge` (0.758 with the fractional ridge of 1.0.0;
 on the 10 test sets the fractional ridge was better, 0.595 against 0.583).
-For the elastic net models and the 49d model there is no such value.
+`rn50x64_49d_ridge`: 0.717, the mean over its 49 dimensions (the fractional
+ridge of the paper fitted again in each fold), so not directly comparable
+with the 66d values. For the elastic net models there is no such value.
 
 ## Which model was used where
 

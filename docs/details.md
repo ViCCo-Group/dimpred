@@ -6,6 +6,7 @@ is useful to know beyond that. The models and how well they work are in
 [models.md](models.md), the training in [training/README.md](../training/README.md).
 
 Contents:
+[All functions](#all-functions) |
 [Images and limitations](#images-and-limitations) |
 [How the predictions are computed](#how-the-predictions-are-computed) |
 [Model files](#model-files) |
@@ -18,6 +19,26 @@ Contents:
 [MATLAB](#matlab) |
 [Tests](#tests) |
 [Repository layout](#repository-layout)
+
+## All functions
+
+| Python | MATLAB | what it does |
+|---|---|---|
+| `dimpred.list_models()` | `names = dimpred_list_models` | names of the shipped models, sorted |
+| `dimpred.load_model(model=None)` | `model = dimpred_load_model(model)` | load a model by name or file (default: `DEFAULT_MODEL`) |
+| `dimpred.find_images(folder)` | `files = dimpred_find_images(folder)` | image files directly in a folder, sorted by name, full paths |
+| `dimpred.extract_features(images, model=None, network=None, pretrained="openai", device=None, batch_size=32)` | `[features, files] = dimpred_extract_features(images, model, cfg)` | network features of image files |
+| `dimpred.predict(features, model=None)` | `embedding = dimpred_predict(features, model)` | predicted dimension values |
+| `dimpred.similarity(embedding, method="spose")` | `S = dimpred_similarity(embedding, method)` | predicted similarity, `"spose"` or `"dot"` |
+| `dimpred.rise(images, model=None, n_masks=6000, ...)` | `result = dimpred_rise(images, model, cfg)` | heatmaps of the predicted dimensions (RISE) |
+
+The Python and MATLAB functions take the same arguments, except that the
+MATLAB functions that run Python take their options in `cfg`, and give the
+same numbers. `dimpred.DEFAULT_MODEL` is `"alignet_siglip2b_66d_ridge"`.
+Wherever a model is expected, you can pass nothing (default model), the name
+of a shipped model, the path to a model file, or a model that was already
+loaded: a dict in Python and a struct in MATLAB with the fields `weights`,
+`feature_mean`, `feature_scale`, `target_mean`, `labels`, `info` and `file`.
 
 ## Images and limitations
 
@@ -113,12 +134,9 @@ S[i, j] = mean over all k not in {i, j} of
 ```
 
 with `S[i, i] = 1`. S is symmetric. Before `exp`, the largest dot product is
-subtracted (the largest of all pairs, or, if the dot products span 700 or
-more, the largest of the three in each triplet). This does not change the
-probabilities, but large embedding values do not give inf or nan. Since the
-third object comes from the images you pass, the similarity of two images
-depends a little on the other images in the set, and at least 3 images are
-needed. For each triplet the three pair probabilities add up to 1, so the
+subtracted, so large embedding values do not give inf or nan. Since the third
+object comes from the images you pass, the similarity of two images depends a
+little on the other images in the set, and at least 3 images are needed. The
 mean of all values off the diagonal is exactly 1/3 (a quick check of any
 implementation).
 
@@ -130,10 +148,9 @@ you can compute with `scipy.spatial.distance.pdist` in Python or `pdist` in
 MATLAB (Statistics and Machine Learning Toolbox).
 
 The computing time of the SPoSE similarity grows with the cube of the number
-of images: a few seconds for 1000 images, but 10 times as many images take
-about 1000 times as long. S and the matrices used on the way have n x n
-values. For many thousands of images, use `"dot"`, or compute the similarity
-for subsets (the values then depend on the subset).
+of images: a few seconds for 1000 images, about 1000 times as long for 10
+times as many. For many thousands of images, use `"dot"`, or compute the
+similarity for subsets (the values then depend on the subset).
 
 ## Feature extraction
 
@@ -148,19 +165,17 @@ gradients, in batches of `batch_size` images. The result is a float32 array
 
 - AligNet SigLIP2-B (default model): the whole image is resized to 224 x 224
   (no crop, the aspect ratio is not kept) with the bicubic interpolation of
-  OpenCV (INTER_CUBIC), rewritten in numpy (not compared with OpenCV itself;
-  OpenCV's fixed-point weights can change single pixel values by 1), values
-  0 to 1. It needs timm 1.0.15 or newer. The features are `pre_logits` (768),
-  the output of the attention pooling head. The weights (378 MB) are
-  downloaded on first use into `~/.cache/dimpred` and checked with their
-  sha256. Without internet access, download `alignet_siglip2_b.safetensors`
-  (release `alignet-weights-v1` of github.com/ViCCo-Group/dimpred) and set the
-  environment variable `DIMPRED_ALIGNET_WEIGHTS` to its path. The network is
-  our PyTorch port of the TensorFlow model of the AligNet authors
-  (`dimpred/alignet.py`). From the image file to the features, it differs
-  from the TensorFlow features of the 1854 reference images by at most 3e-4
-  (median 1e-5 per image); more in
-  [training/alignet](../training/alignet/README.md).
+  OpenCV (INTER_CUBIC), rewritten in numpy, values 0 to 1. It needs timm
+  1.0.15 or newer. The features are `pre_logits` (768), the output of the
+  attention pooling head. The weights (378 MB) are downloaded on first use
+  into `~/.cache/dimpred` and checked with their sha256. Without internet
+  access, download `alignet_siglip2_b.safetensors` from the release
+  [alignet-weights-v1](https://github.com/ViCCo-Group/dimpred/releases/tag/alignet-weights-v1)
+  and set the environment variable `DIMPRED_ALIGNET_WEIGHTS` to its path. The
+  network is our PyTorch port of the TensorFlow model of the AligNet authors
+  (`dimpred/alignet.py`); its features differ from the TensorFlow features of
+  the 1854 reference images by at most 3e-4 (median 1e-5,
+  [training/alignet](../training/alignet/README.md)).
 - CLIP networks: open_clip with the weights `pretrained="openai"`, the
   preprocessing of the network (RN50x64: resize the shortest side to 448 px,
   bicubic, center crop 448 x 448; ViT-B/32: the same with 224), and the output
@@ -172,16 +187,11 @@ gradients, in batches of `batch_size` images. The result is a float32 array
   gives different features (per-image r of about 0.98 with the original
   features instead of 1.0). The models store the right name in
   `info["network"]`, and `extract_features` uses it.
-- When it loads RN50x64, open_clip warns about a "QuickGELU mismatch". This
-  does not matter for the image features: the image encoder of RN50x64 is a
-  ResNet with ReLU, and QuickGELU is only used in the text part, which dimpred
-  does not use.
-- open_clip `RN50x64` reproduces the RN50x64 features of the DimPred paper
-  (r = 1.000000, largest absolute difference 3e-5 on the cpu, 1.6e-4 on an
-  Apple GPU), and `ViT-B-32-quickgelu` the ViT-B/32 features of the DimPred
-  paper and of Contier et al. (2024) and the published predictions of the
-  paper for 48new, 48nonref, Kriegeskorte-92 and the Peterson animals
-  (r = 1.000000). So thingsvision is not needed.
+- open_clip's warning about a "QuickGELU mismatch" for RN50x64 does not
+  matter: QuickGELU is only used in the text part, which dimpred does not use.
+- open_clip `RN50x64` and `ViT-B-32-quickgelu` reproduce the features of the
+  DimPred paper and of Contier et al. (2024) (r = 1.000000, largest
+  difference 3e-5 on the cpu), so thingsvision is not needed.
 - Devices (cuda, mps, cpu) give slightly different features, differences of
   about 1e-4. The tests allow a per-image correlation of 0.99999 and a
   difference of 2e-3.
@@ -189,6 +199,8 @@ gradients, in batches of `batch_size` images. The result is a float32 array
   and 33 to 38 s on the cpu (8 threads), plus 10 to 12 s for reading and
   resizing the images; CLIP ViT-B/32 2.0 s (mps) and 8.7 s (cpu).
 - Features from your own code have to be computed in exactly this way.
+- torch, open_clip and timm are only imported inside `extract_features` and
+  `rise`, so the rest of the package works without them.
 
 ### Image order
 
@@ -213,9 +225,8 @@ for each image, a map of each dimension and a relevance map, with RISE
   ceil(input size / 8) pixels and cut to the input size at a random
   shift. 6000 masks (`n_masks`), the same masks for every image, drawn
   with seed 0 (`seed`). The grid, p and the number of masks are the
-  settings of the paper; the original code has no seed. The masks are
-  those of the original code after np.random.seed(0) (checked with skimage
-  0.25.2).
+  settings of the paper; the masks are those of the original code after
+  np.random.seed(0).
 - The mask multiplies the network input image (values 0 to 1) before the
   normalization of the network, so masked pixels are black. The masked
   images then go through the network as in `extract_features`, and
@@ -243,24 +254,18 @@ for each image, a map of each dimension and a relevance map, with RISE
   whose maps were just as close. Any model works, AligNet is the fast
   option.
 - Time on an Apple M1 Max (GPU, mps) with 6000 masks: about 10 min per
-  image with RN50x64 (measured: 64 s for 600 masks) and under 1 min with
-  AligNet (measured: 49 s); the cpu is much slower. The time is
-  proportional to the number of masks. With the default normalization,
-  2000 masks still give stable maps: for the four images of Figure 7, the
-  relevance maps of two separate sets of 3000 masks correlated with r =
-  0.95 to 0.99 (by the Spearman-Brown formula, about 0.93 to 0.98 for two
-  sets of 2000 masks). With `"original"` they correlated only with r =
-  0.22 to 0.76.
+  image with RN50x64 and 49 s with AligNet; the cpu is much slower. The
+  time is proportional to the number of masks. With the default
+  normalization, 2000 masks still give stable maps: for the four images of
+  Figure 7, the relevance maps of two separate sets of 3000 masks
+  correlated with r = 0.95 to 0.99 (with `"original"` only 0.22 to 0.76).
 - Memory: most of it is used by the network, which gets `batch_size`
   masked images at once (default 32; on an Apple M1 Max with mps, a peak
-  of about 11 GB for RN50x64 and 2 GB for AligNet). A smaller `batch_size`
-  needs less. RISE itself adds the sums of one image at the input size of
-  the network (66 x 448 x 448 values, 106 MB for RN50x64) and about 13 MB
-  per image for the result. The memory does not grow with `n_masks`. A
-  .mat file holds at most 2 GB per variable (about 160 images), use .npz
-  for more. `dimpred_rise` in MATLAB always gets a .mat file from Python,
-  so it takes at most 162 images with 66 dimensions (218 with 49) per
-  call; for more images, call it in a loop.
+  of about 11 GB for RN50x64 and 2 GB for AligNet). The result needs about
+  13 MB per image. A .mat file holds at most 2 GB per variable (162 images
+  with 66 dimensions, 218 with 49), use .npz for more. `dimpred_rise` in
+  MATLAB always gets a .mat file from Python, so for more images call it in
+  a loop.
 - Output: `relevance` (images x 224 x 224), `dimension_maps` (images x
   dimensions x 224 x 224), `embedding` (the predictions of the images
   without masks, the same as `predict(extract_features(...))`), `labels`,
@@ -268,9 +273,8 @@ for each image, a map of each dimension and a relevance map, with RISE
 - `--png FOLDER` (MATLAB `cfg.png`) saves, for each image, the relevance map
   (`<name>_relevance.png`) and the maps of the 3 dimensions with the largest
   predicted values (`<name>_top<rank>_dim<k>.png`, k counts the dimensions
-  from 1), on top of `view`, colored as in the paper (jet from the minimum to
-  the maximum of the map, 40% map and 60% image). In Python:
-  `from dimpred.rise import overlay`.
+  from 1), on top of `view`, colored as in the paper (jet, 40% map and 60%
+  image). In Python: `from dimpred.rise import overlay`.
 
 ## Command line
 
@@ -288,8 +292,8 @@ shipped model or the path of a model file (default:
 were computed before and does not need torch. Give the same `--model` as for
 the extraction: the model name stored in a file written with `--features-only`
 is not read. The third form saves the heatmaps of `rise` (see
-[Heatmaps (RISE)](#heatmaps-rise)). The tool prints a short summary with the
-number of images, the model and the output file.
+[Heatmaps (RISE)](#heatmaps-rise)); `--png FOLDER` also saves PNG files of
+the relevance map and of the 3 dimensions with the largest values.
 
 ### File formats
 
@@ -316,20 +320,17 @@ number of images, the model and the output file.
 
 The MATLAB version needs R2016b or newer. The functions find the model files
 in `../dimpred/models` relative to their own folder, so `matlab/` has to stay
-inside the repository. All functions run in MATLAB alone except two:
-`dimpred_extract_features` runs `python -m dimpred ... --features-only` and
-reads the result, and `dimpred_rise` runs `python -m dimpred ... --rise`. The
-Python is `cfg.python`, else the environment variable `DIMPRED_PYTHON`, else
-`python3` (on Windows, where `python3` usually does not exist, set
-`cfg.python` or `DIMPRED_PYTHON`). It needs numpy, scipy, torch,
-open_clip_torch, timm (1.0.15 or newer) and pillow. The dimpred package does
-not have to be installed in it: both functions put the repository on the
-Python path, so Python and MATLAB use the same code and models. `setenv` in
-MATLAB is passed on to Python, e.g. for `DIMPRED_ALIGNET_WEIGHTS`. A model
-struct reaches Python as it is (both functions save it to a temporary model
-file), so a model changed or made by hand works as in Python. Unlike
-`extract_features` in Python, `dimpred_extract_features` has no option for
-another network: the network always comes from the model.
+inside the repository. All functions run in MATLAB alone except
+`dimpred_extract_features` and `dimpred_rise`, which run `python -m dimpred`
+(with `--features-only` or `--rise`) and read the result. The Python is
+`cfg.python`, else the environment variable `DIMPRED_PYTHON`, else `python3`
+(on Windows, set `cfg.python` or `DIMPRED_PYTHON`). Both functions put the
+repository on the Python path, so Python and MATLAB use the same code and
+models. `setenv` in MATLAB is passed on to Python, e.g. for
+`DIMPRED_ALIGNET_WEIGHTS`. A model struct reaches Python as it is, also if it
+was changed or made by hand. Unlike `extract_features` in Python,
+`dimpred_extract_features` has no option for another network: the network
+always comes from the model.
 
 ## Tests
 
@@ -372,19 +373,16 @@ What the tests check, in short:
 - the shipped models give the expected predictions on 168 test images
   (tolerance 1e-10), and `rn50x64_49d_ridge` gives the published predictions
   of the paper (1e-10)
-- the numbers in the model files: `target_mean` is the mean of each dimension
-  of the embedding in `training/data`, the feature scaling of the RN50x64
-  models is that of the published model of the paper, the labels are those
-  of the embedding, and the weights of the two ridge models are those of the
-  same ridge fitted in our comparison of 15 networks
+- the numbers in the model files: `target_mean`, the feature scaling of the
+  RN50x64 models (that of the paper), the labels, and the weights of the two
+  ridge models (those of our comparison of 15 networks)
 - each part of the formula of `predict`, and mistakes of earlier versions
   (no `target_mean`, wrong z-scoring)
-- `similarity` against small examples computed by hand, a slow reference that
-  follows the definition, symmetry, the mean of 1/3, permutations, large
-  values, and speed
+- `similarity` against examples computed by hand and a slow reference that
+  follows the definition
 - feature extraction of the three CC0 images against reference features
-  (open_clip, and TensorFlow for AligNet), the ViT GELU/QuickGELU mistake, the
-  order of the rows, and errors for missing files and folders
+  (open_clip, and TensorFlow for AligNet), the ViT GELU/QuickGELU mistake and
+  the order of the rows
 - `rise`: the masks against those of the original RISE code, both
   normalizations, the relevance map, the command line tool and the PNG files
 - correlation of predicted and human similarity for the 48nonref images
@@ -408,10 +406,9 @@ The fixtures are in `tests/fixtures`:
   fractions of the original training code for the fractional ridge of
   RN50x64 and the 66d embedding
 
-`tests/fixtures/make_fixtures.py` documents how they were made
-(`alignet_tensorflow_features.py` makes the TensorFlow features of the CC0
-images). It needs data that are not part of the repository and only has to be
-run again if the shipped models change.
+`tests/fixtures/make_fixtures.py` documents how they were made. It needs data
+that are not part of the repository and only has to be run again if the
+shipped models change.
 
 ## Repository layout
 
