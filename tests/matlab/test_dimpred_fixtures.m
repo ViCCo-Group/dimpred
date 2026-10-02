@@ -30,6 +30,7 @@
 % See also RUN_DIMPRED_TESTS
 
 % History:
+% 2026/10/02: %#ok for iscellstr, which checks for cell arrays on purpose
 % 2026/10/02: AligNet SigLIP2-B features and the model alignet_siglip2b_66d_ridge
 % 2026/09/30: after review: text variables are cells of text, published
 %   predictions equal expected_rn50x64_49d_ridge, CC0 images differ, not
@@ -111,7 +112,8 @@ function test_text_variables_are_cells_of_text(testCase)
 ref = testCase.TestData.ref;
 names = {'files', 'image_set', 'cc0_files'};
 for i_var = 1:numel(names)
-    testCase.verifyTrue(iscellstr(ref.(names{i_var})), ...
+    is_text = iscellstr(ref.(names{i_var})); %#ok<ISCLSTR> on purpose: cell arrays, not strings
+    testCase.verifyTrue(is_text, ...
         sprintf('Variable %s should be a cell array of text', names{i_var}));
 end
 end

@@ -23,7 +23,7 @@
 %   dimpred_rise              heatmaps: which parts of an image drive its predicted dimensions (runs Python)
 %
 % Example:
-%   setenv('DIMPRED_PYTHON', '/path/to/python')  % Python for dimpred_extract_features
+%   setenv('DIMPRED_PYTHON', '/path/to/python')  % Python for dimpred_extract_features and dimpred_rise
 %   files = dimpred_find_images('my_images');
 %   features = dimpred_extract_features(files);  % default model: alignet_siglip2b_66d_ridge
 %   embedding = dimpred_predict(features);       % n_images x 66
@@ -37,3 +37,7 @@
 % abstraction levels. Nature 647, 349-355.
 %
 % Hebartlab, 2026/09/30
+
+% History:
+% 2026/10/02: dimpred_rise, new default model alignet_siglip2b_66d_ridge
+% 2026/09/30: written for the first release of the package

@@ -258,7 +258,9 @@ for each image, a map of each dimension and a relevance map, with RISE
   the network (66 x 448 x 448 values, 106 MB for RN50x64) and about 13 MB
   per image for the result. The memory does not grow with `n_masks`. A
   .mat file holds at most 2 GB per variable (about 160 images), use .npz
-  for more.
+  for more. `dimpred_rise` in MATLAB always gets a .mat file from Python,
+  so it takes at most 162 images with 66 dimensions (218 with 49) per
+  call; for more images, call it in a loop.
 - Output: `relevance` (images x 224 x 224), `dimension_maps` (images x
   dimensions x 224 x 224), `embedding` (the predictions of the images
   without masks, the same as `predict(extract_features(...))`), `labels`,
@@ -323,9 +325,11 @@ Python is `cfg.python`, else the environment variable `DIMPRED_PYTHON`, else
 open_clip_torch, timm (1.0.15 or newer) and pillow. The dimpred package does
 not have to be installed in it: both functions put the repository on the
 Python path, so Python and MATLAB use the same code and models. `setenv` in
-MATLAB is passed on to Python, e.g. for `DIMPRED_ALIGNET_WEIGHTS`. Unlike
+MATLAB is passed on to Python, e.g. for `DIMPRED_ALIGNET_WEIGHTS`. A model
+struct reaches Python as it is (both functions save it to a temporary model
+file), so a model changed or made by hand works as in Python. Unlike
 `extract_features` in Python, `dimpred_extract_features` has no option for
-another network: the network always comes from the model file.
+another network: the network always comes from the model.
 
 ## Tests
 

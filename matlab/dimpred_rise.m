@@ -15,10 +15,11 @@
 %
 %   python -m dimpred <images> --rise --n-masks <n> --model <model file> --out <temporary .mat file>
 %
-% and loads the file that it writes. Python needs numpy, scipy, torch,
-% open_clip_torch, timm (1.0.15 or newer) and pillow, as for
-% dimpred_extract_features (see there for cfg.python and DIMPRED_PYTHON).
-% What Python prints, e.g. one line per image, is shown while it runs.
+% and loads the file that it writes (a temporary file, deleted at the
+% end). Python needs numpy, scipy, torch, open_clip_torch, timm (1.0.15 or
+% newer) and pillow, as for dimpred_extract_features (see there for
+% cfg.python and DIMPRED_PYTHON). What Python prints, e.g. one line per
+% image, is shown while it runs.
 %
 % The masks are those of the DimPred paper and of the original RISE code:
 % an 8 x 8 grid of cells, each kept with probability 0.1, upsampled
@@ -32,6 +33,14 @@
 % 6000 masks this takes about 10 min per image with RN50x64 and less than
 % 1 min with AligNet on the GPU of an Apple M1 Max, much longer on the cpu.
 % Fewer masks (e.g. cfg.n_masks = 2000) still give stable maps.
+%
+% Number of images: Python returns the maps in a .mat file, which holds at
+% most 2 GB per variable, so one call takes at most 162 images with 66
+% dimensions (218 with 49). The maps of one image need about 13 MB in
+% MATLAB. On Windows, the length of the command line (at most 8191
+% characters) can limit the number further. Too many images give the
+% error dimpred:tooManyImages before Python starts. For more images, call
+% dimpred_rise in a loop, e.g. with cfg.png to keep only the PNG files.
 %
 % Model: for heatmaps we recommend rn50x64_66d_ridge (a convolutional
 % network; of the 66d models we compared, its maps were the closest to
@@ -48,8 +57,9 @@
 % Input:
 %   images: cell array of image files, or one file as text (no folders,
 %           use dimpred_find_images)
-%   model:  model name, path of a model file, or a model from
-%           dimpred_load_model (default: [], the default model
+%   model:  model name, path of a model file, or a model struct, e.g.
+%           from dimpred_load_model, which Python gets as it is, also if
+%           it was changed by hand (default: [], the default model
 %           alignet_siglip2b_66d_ridge)
 %   cfg:    optional struct with the fields
 %     cfg.n_masks:    number of masks (default: 6000)
@@ -97,6 +107,9 @@
 % See also DIMPRED_EXTRACT_FEATURES, DIMPRED_PREDICT, DIMPRED_FIND_IMAGES
 
 % History:
+% 2026/10/02: after review: a model struct reaches Python as it is; error
+%   dimpred:tooManyImages for more than 2 GB of maps; trailing backslashes
+%   on Windows; no second start line
 % 2026/10/02: written for dimpred 1.1.0
 
 function result = dimpred_rise(images, model, cfg)
@@ -121,17 +134,31 @@ for i_file = 1:numel(files)
 end
 
 % Model (an unknown model gives an error here, before Python is started).
-% Python gets the model as the path of its file, as in
-% dimpred_extract_features.
+% Python gets the model as the path of its file. A model struct is saved
+% to a temporary file below, so that Python uses it as it is, also if it
+% was changed by hand or has no file (as rise in Python with a model dict).
 if ~exist('model', 'var'), model = []; end
-if isstruct(model) && isfield(model, 'file') && ~isempty(model.file)
-    model = model.file;
+model_variables = {'weights', 'feature_mean', 'feature_scale', 'target_mean', 'labels', 'info'};
+model_is_struct = isstruct(model);
+if model_is_struct
+    missing = model_variables(~isfield(model, model_variables));
+    if ~isempty(missing)
+        error('dimpred:inconsistentModel', 'The model struct has no field %s (see help dimpred_load_model).', ...
+            strjoin(missing, ', '))
+    end
 end
 model = dimpred_load_model(model);
-if isfield(model, 'file') && ~isempty(model.file)
-    model_arg = model.file;
-else
-    model_arg = model.info.name; % a model struct made by hand, without file
+
+% Python returns the maps in a .mat file, which holds at most 2 GB per
+% variable. The largest variable is dimension_maps, 4 bytes for each of
+% n_images x n_dims x 224 x 224 values (Python checks the same).
+n_dims = size(model.weights, 2);
+max_images = floor((2^31 - 1) / (4 * n_dims * 224 * 224));
+if numel(files) > max_images
+    error('dimpred:tooManyImages', ['The maps of %i images with %i dimensions are too large for one call of ' ...
+        'dimpred_rise: Python returns them in a .mat file, which holds at most 2 GB per variable, i.e. ' ...
+        '%i images. Please call dimpred_rise for fewer images at a time, e.g. in a loop.'], ...
+        numel(files), n_dims, max_images)
 end
 
 % Set defaults
@@ -175,14 +202,20 @@ out_folder = tempname;
 mkdir(out_folder);
 remove_out_folder = onCleanup(@() rmdir(out_folder, 's'));
 out_file = fullfile(out_folder, 'heatmaps.mat');
+if model_is_struct
+    model_file = fullfile(out_folder, 'model.mat');
+    save(model_file, '-struct', 'model', model_variables{:}, '-v7');
+else
+    model_file = model.file;
+end
 
-% The command. Unlike dimpred_extract_features, we do not split many
-% images into several Python runs: RISE takes minutes per image, so a
-% command line that is too long (more than 8191 characters on Windows)
-% would mean days of computing. We give an error instead.
+% The command. Unlike dimpred_extract_features, we do not split the images
+% into several Python runs (the 2 GB limit above allows only a few hundred
+% images anyway). On Windows, a command can have at most 8191 characters,
+% so there we give an error for a command that is too long.
 quoted_files = cellfun(@quote, full_files, 'UniformOutput', false);
 command = [quote(cfg.python) ' -m dimpred ' strjoin(quoted_files', ' ') ' --rise' ...
-    sprintf(' --n-masks %i --batch-size %i', cfg.n_masks, cfg.batch_size) ' --model ' quote(model_arg) ...
+    sprintf(' --n-masks %i --batch-size %i', cfg.n_masks, cfg.batch_size) ' --model ' quote(model_file) ...
     ' --out ' quote(out_file)];
 if ~isempty(cfg.png)
     command = [command ' --png ' quote(full_path(cfg.png))];
@@ -199,16 +232,10 @@ if ispc
     command = ['"' command '"'];
 end
 
-% Run Python
-if numel(files) == 1
-    images_text = '1 image';
-else
-    images_text = sprintf('%i images', numel(files));
-end
-fprintf('Computing RISE heatmaps of %s with %s and %i masks in Python (%s)\n', images_text, ...
-    model.info.network, cfg.n_masks, cfg.python);
-% With -echo, what Python prints (one line per image) is shown while it
-% runs, which can take hours, and output still holds it for the error
+% Run Python. With -echo, what Python prints (the images, the model and
+% the masks, then one line per image) is shown while it runs, which can
+% take hours, and output still holds it for the error.
+fprintf('Running RISE in Python (%s)\n', cfg.python);
 [status, output] = system(command, '-echo');
 if status ~= 0 || exist(out_file, 'file') ~= 2
     error('dimpred:pythonFailed', ['RISE in Python failed (exit status %i, Python: %s). cfg.python or the ' ...
@@ -227,6 +254,8 @@ result.files = files; % as given (Python got the full paths)
 result.view = saved.view;
 result.model = saved.model;
 result.settings = saved.settings;
+% Python's last line names the temporary file, which is deleted now
+fprintf('Loaded the heatmaps into MATLAB and deleted the temporary file\n');
 
 
 %% Subfunctions
@@ -240,9 +269,12 @@ end
 
 function arg = quote(arg)
 % Quotes arg for the command line, so that it arrives in Python as one
-% argument, unchanged, also with spaces, quotes or & in it
+% argument, unchanged, also with spaces, quotes or & in it. On Windows,
+% backslashes at the end are doubled, because \" would be read as a quote
+% (as subprocess.list2cmdline in Python does it); cmd.exe still replaces
+% %NAME% by the environment variable NAME.
 if ispc
-    arg = ['"' arg '"']; % names on Windows cannot contain "
+    arg = ['"' regexprep(arg, '(\\+)$', '$1$1') '"']; % names on Windows cannot contain "
 else
     arg = ['''' strrep(arg, '''', '''\''''') '''']; % in single quotes, each ' becomes '\''
 end

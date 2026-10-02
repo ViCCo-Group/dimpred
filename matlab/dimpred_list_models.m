@@ -3,7 +3,8 @@
 % Names of the models that come with dimpred. Each model is a .mat file in
 % the folder dimpred/models of the repository, and its name is the file
 % name without .mat. Any of these names can be passed as model to
-% dimpred_load_model, dimpred_predict and dimpred_extract_features.
+% dimpred_load_model, dimpred_predict, dimpred_extract_features and
+% dimpred_rise.
 %
 % The models are found relative to the folder of this function (in
 % ../dimpred/models), not relative to the current folder. For this reason,
@@ -30,6 +31,7 @@
 % See also DIMPRED_LOAD_MODEL
 
 % History:
+% 2026/10/02: dimpred_rise in the help text
 % 2026/10/02: new model alignet_siglip2b_66d_ridge in the help text
 % 2026/09/30: written for the first release of the package
 

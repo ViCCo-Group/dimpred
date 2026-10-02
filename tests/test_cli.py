@@ -28,6 +28,7 @@ from helpers import (DEFAULT_MODEL, IMAGES, MODELS, TOL_ALIGNET_DIFF, TOL_FRESH_
                      assert_features_match, features_for, imported_packages, load_mat, output_of, run_dimpred)
 
 # History:
+# 2026/10/02: an empty MKL_NUM_THREADS (as from MATLAB) gives no warning
 # 2026/10/02: the default model is alignet_siglip2b_66d_ridge; the tests of
 #   folders, order and options from images use vitb32_66d_elastic, so they
 #   do not need the AligNet weights
@@ -358,6 +359,20 @@ def test_device_and_batch_size_options(tmp_path, ref, cc0_paths, open_clip_avail
     assert_success(result)
     assert_features_match(load_mat(tmp_path / "out.mat")["features"], ref["cc0_features_vitb32"],
                           "features with --device cpu --batch-size 2")
+
+
+@pytest.mark.slow
+def test_empty_mkl_num_threads_gives_no_warning(tmp_path, cc0_paths, open_clip_available, monkeypatch):
+    # MATLAB starts Python with MKL_NUM_THREADS set to an empty text. torch
+    # then warns on every run that the value is invalid, which looks like an
+    # error in the output of dimpred_rise and in the errors of the MATLAB
+    # functions, although torch still uses all threads
+    monkeypatch.setenv("MKL_NUM_THREADS", "")  # run_dimpred passes os.environ on
+    result = run_dimpred(cc0_paths[:1] + ["--model", "vitb32_66d_elastic", "--features-only", "--device", "cpu",
+                                          "--out", "out.mat"], cwd=tmp_path)
+    assert_success(result)
+    assert "MKL_NUM_THREADS" not in result.stdout + result.stderr, (
+        f"an empty MKL_NUM_THREADS should give no warning\n{output_of(result)}")
 
 
 @pytest.mark.slow

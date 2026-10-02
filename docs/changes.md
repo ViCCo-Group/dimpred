@@ -17,6 +17,9 @@
   `"fracridge"`.
 - New: heatmaps with RISE (`dimpred.rise`, `python -m dimpred --rise`,
   `dimpred_rise`), see [Heatmaps (RISE)](details.md#heatmaps-rise).
+- In MATLAB, `dimpred_extract_features` gives Python a model struct as it
+  is (1.0.0: it loaded `model.file` again, so a network changed by hand in
+  `model.info` was not used, and a struct without a file did not work).
 - The README is shorter. The details are in [details.md](details.md) and
   [models.md](models.md), the training in
   [training/README.md](../training/README.md).

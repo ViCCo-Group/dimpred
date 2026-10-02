@@ -11,9 +11,11 @@
 % "python": a small shell script that writes the arguments it gets to a
 % text file, prints an error text and exits with status 1. dimpred_rise
 % then has to give the error dimpred:pythonFailed, and we can read which
-% arguments arrived after "-m dimpred". A shell script does not run on
-% Windows, so the tests with the fake Python are skipped there. The image
-% files here are empty, because Python never reads them.
+% arguments arrived after "-m dimpred". The fake Python also copies the
+% model file that it gets with --model, so that we can check that a model
+% struct reaches Python as it is. A shell script does not run on Windows,
+% so the tests with the fake Python are skipped there. The image files
+% here are empty, because Python never reads them.
 %
 % Run with
 %   runtests('test_dimpred_rise_errors')
@@ -24,6 +26,8 @@
 % See also DIMPRED_RISE, TEST_DIMPRED_RISE, RUN_DIMPRED_TESTS
 
 % History:
+% 2026/10/02: after review: model structs, the limit of 162 images, the
+%   fake Python copies the model file
 % 2026/10/02: written before dimpred_rise.m (test-driven)
 
 function tests = test_dimpred_rise_errors
@@ -71,6 +75,13 @@ end
 end
 
 
+function test_help_names_the_limit_of_images(testCase)
+text = evalc('help dimpred_rise');
+testCase.verifySubstring(text, '162', 'The help should say that one call takes at most 162 images with 66 dimensions');
+testCase.verifySubstring(text, 'dimpred:tooManyImages', 'The help should name the error for too many images');
+end
+
+
 %% Wrong input (checked before Python starts)
 
 function test_missing_image_gives_error(testCase)
@@ -111,6 +122,36 @@ testCase.assertNotEmpty(err, 'An unknown model should give an error');
 testCase.verifyEqual(err.identifier, 'dimpred:unknownModel', ['An unknown model should give dimpred:unknownModel, got: ' err.message]);
 end
 
+function test_model_struct_without_weights_gives_error(testCase)
+images = make_image_files(testCase, {'a.jpg'});
+model = rmfield(dimpred_load_model('vitb32_66d_elastic'), 'weights');
+cfg.python = testCase.TestData.no_python;
+err = error_of(@() dimpred_rise(images, model, cfg));
+testCase.assertNotEmpty(err, 'A model struct without weights should give an error');
+testCase.verifyEqual(err.identifier, 'dimpred:inconsistentModel', ...
+    ['A model struct without weights should give dimpred:inconsistentModel, got: ' err.message]);
+testCase.verifySubstring(err.message, 'weights', 'The error message should name the missing field');
+end
+
+function test_too_many_images_give_error_before_python_starts(testCase)
+% Python returns the maps in a .mat file, which holds at most 2 GB per
+% variable. The dimension maps of one image with 66 dimensions are
+% 66 x 224 x 224 values of 4 bytes, so 162 images fit and 163 do not.
+% The error has to come from MATLAB, because the error of Python asks for
+% an .npz file, which dimpred_rise cannot read.
+fake = make_fake_python(testCase, 'fake');
+names = arrayfun(@(i) sprintf('img_%03i.jpg', i), (1:163)', 'UniformOutput', false);
+images = make_image_files(testCase, names);
+cfg.python = fake.python;
+err = error_of(@() dimpred_rise(images, [], cfg));
+testCase.assertNotEmpty(err, '163 images with 66 dimensions should give an error');
+testCase.verifyEqual(err.identifier, 'dimpred:tooManyImages', ...
+    ['163 images with 66 dimensions should give dimpred:tooManyImages, got: ' err.message]);
+testCase.verifySubstring(err.message, '162', 'The error message should say how many images fit');
+testCase.verifyEmpty(recorded_calls(fake), 'For too many images, Python should not be started');
+verify_python_fails(testCase, @() dimpred_rise(images(1:162), [], cfg));
+end
+
 
 %% Python fails
 
@@ -134,8 +175,8 @@ function test_python_output_is_shown_while_it_runs(testCase)
 % what Python prints has to appear in MATLAB while it runs, not only in
 % the error message at the end
 fake = make_fake_python(testCase, 'fake');
-images = make_image_files(testCase, {'a.jpg'});
-cfg.python = fake.python;
+images = make_image_files(testCase, {'a.jpg'}); %#ok<NASGU> used in evalc
+cfg.python = fake.python; %#ok<STRNU> used in evalc
 printed = evalc('try, dimpred_rise(images, [], cfg); catch, end');
 testCase.verifySubstring(printed, fake.error_text, 'What Python prints should be shown in MATLAB while it runs');
 end
@@ -215,17 +256,48 @@ testCase.verifyNotEmpty(recorded_calls(fake), 'Without cfg, dimpred_rise should 
 end
 
 
+%% Model given as struct (with the fake Python)
+
+function test_model_struct_is_passed_as_it_is(testCase)
+% A model struct that was changed after dimpred_load_model has to reach
+% Python as it is, as in Python, where rise(images, model) uses the dict
+% that it gets. Here all dimensions but the first get weights of 0.
+fake = make_fake_python(testCase, 'fake');
+images = make_image_files(testCase, {'a.jpg'});
+model = dimpred_load_model('vitb32_66d_elastic');
+model.weights(:, 2:end) = 0;
+cfg.python = fake.python;
+verify_python_fails(testCase, @() dimpred_rise(images, model, cfg));
+verify_model_file_holds(testCase, fake, model);
+end
+
+function test_model_struct_without_file_is_passed(testCase)
+% A model struct made by hand, without the field file and with a name
+% that is not one of the shipped models
+fake = make_fake_python(testCase, 'fake');
+images = make_image_files(testCase, {'a.jpg'});
+model = rmfield(dimpred_load_model('vitb32_66d_elastic'), 'file');
+model.info.name = 'my_model';
+cfg.python = fake.python;
+verify_python_fails(testCase, @() dimpred_rise(images, model, cfg));
+verify_model_file_holds(testCase, fake, model);
+end
+
+
 %% Helpers (as in test_dimpred_extract_features_errors.m)
 
 function fake = make_fake_python(testCase, folder_name)
 % Shell script in a new folder of the given name that stands in for
 % Python. It adds its arguments to fake.log_file (one per line, each call
-% ends with fake.end_marker), prints fake.error_text and exits with status 1.
+% ends with fake.end_marker), copies the file given with --model to
+% fake.model_copy (dimpred_rise deletes its temporary files), prints
+% fake.error_text and exits with status 1.
 testCase.assumeFalse(ispc, 'The fake Python is a shell script, which does not run on Windows');
 folder = fullfile(make_temp_folder(testCase), folder_name);
 mkdir(folder);
 fake.python = fullfile(folder, 'python');
 fake.log_file = fullfile(folder, 'calls.txt');
+fake.model_copy = fullfile(folder, 'model_copy.mat');
 fake.end_marker = '=== end of call ===';
 fake.error_text = 'fake python stopped here on purpose';
 fid = fopen(fake.python, 'w');
@@ -233,6 +305,9 @@ testCase.assertGreaterThan(fid, 0, sprintf('Could not create %s', fake.python));
 fprintf(fid, '#!/bin/sh\n');
 fprintf(fid, 'for arg in "$@"; do printf ''%%s\\n'' "$arg"; done >> ''%s''\n', fake.log_file);
 fprintf(fid, 'echo ''%s'' >> ''%s''\n', fake.end_marker, fake.log_file);
+fprintf(fid, 'prev=\n');
+fprintf(fid, 'for arg in "$@"; do if [ "$prev" = --model ] && [ -f "$arg" ]; then cp "$arg" ''%s''; fi; prev=$arg; done\n', ...
+    fake.model_copy);
 fprintf(fid, 'echo ''%s'' >&2\n', fake.error_text);
 fprintf(fid, 'exit 1\n');
 fclose(fid);
@@ -269,6 +344,20 @@ for i_call = 1:numel(calls)
     end
 end
 testCase.assertFail('Python was never called as "python -m dimpred ...".');
+end
+
+function verify_model_file_holds(testCase, fake, model)
+% The model file that the fake Python got with --model has to hold the
+% fields of the given model struct
+args = arguments_after_dimpred(testCase, fake);
+testCase.assertEqual(exist(fake.model_copy, 'file'), 2, ...
+    sprintf('Python should get a model file with --model, got: %s', option_value(args, '--model')));
+saved = load(fake.model_copy);
+fields = {'weights', 'feature_mean', 'feature_scale', 'target_mean', 'labels', 'info'};
+for i_field = 1:numel(fields)
+    testCase.verifyEqual(saved.(fields{i_field}), model.(fields{i_field}), ...
+        sprintf('The model file that Python gets should hold %s of the model struct', fields{i_field}));
+end
 end
 
 function value = option_value(args, option)

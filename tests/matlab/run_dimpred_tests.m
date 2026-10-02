@@ -15,13 +15,19 @@
 %   Error identifiers
 %     dimpred:unknownModel       dimpred_load_model: unknown model name, or
 %                                a model file that does not exist (the
-%                                message lists the shipped models)
+%                                message lists the shipped models);
+%                                dimpred_list_models: the folder
+%                                dimpred/models is missing
 %     dimpred:inconsistentModel  dimpred_load_model: sizes in the model file
 %                                do not fit together, or a variable such as
-%                                target_mean is missing
+%                                target_mean is missing;
+%                                dimpred_extract_features, dimpred_rise: a
+%                                model struct without one of the fields
 %     dimpred:folderNotFound     dimpred_find_images: the folder does not
 %                                exist or is a file
-%     dimpred:noImages           dimpred_find_images: no image files
+%     dimpred:noImages           dimpred_find_images: no image files;
+%                                dimpred_extract_features, dimpred_rise: an
+%                                empty list of images
 %     dimpred:fileNotFound       dimpred_extract_features, dimpred_rise: an
 %                                image file does not exist, or a folder was
 %                                given (checked before Python starts)
@@ -29,9 +35,16 @@
 %                                Python cannot be started or exits with an
 %                                error (the message includes what Python
 %                                printed)
+%     dimpred:tooManyImages      dimpred_rise: the maps would need more than
+%                                2 GB in the .mat file of Python (more than
+%                                162 images with 66 dimensions), or the
+%                                command line is too long for Windows
 %     dimpred:wrongFeatureCount  dimpred_predict: the number of feature
 %                                columns does not fit the model (also for
 %                                transposed features and for a column vector)
+%     dimpred:notFinite          dimpred_predict: NaN or Inf in the features;
+%                                dimpred_similarity: NaN or Inf in the
+%                                embedding
 %     dimpred:tooFewObjects      dimpred_similarity: fewer than 3 objects
 %     dimpred:unknownMethod      dimpred_similarity: method other than
 %                                'spose' or 'dot'
@@ -46,7 +59,10 @@
 %       features) and, as second output, the given files as a cell column;
 %       it calls python -m dimpred <images> --features-only with --model,
 %       --batch-size and --device; Python is cfg.python, else
-%       DIMPRED_PYTHON, else python3
+%       DIMPRED_PYTHON, else python3; many images are split into several
+%       Python runs by the length of the command line in bytes
+%     - dimpred_extract_features and dimpred_rise give Python a model
+%       struct as it is (saved to a temporary model file)
 %     - dimpred_predict never transposes the features and returns double
 %     - dimpred_rise calls python -m dimpred <images> --rise with --n-masks,
 %       --model, --batch-size, --out (a .mat file) and, if given, --png and
@@ -74,6 +90,8 @@
 % See also RUNTESTS, TEST_DIMPRED_PREDICT, TEST_DIMPRED_EXTRACT_FEATURES
 
 % History:
+% 2026/10/02: more error identifiers in the list (notFinite,
+%   tooManyImages, noImages and inconsistentModel of more functions)
 % 2026/10/02: 'fast' also leaves out test_dimpred_rise
 % 2026/09/30: the fast error tests of the extraction are now in their own
 %   file, so that 'fast' keeps them; 'fast' gives an error if it finds no

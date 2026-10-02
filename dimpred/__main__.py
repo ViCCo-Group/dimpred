@@ -77,6 +77,7 @@ import scipy.io
 import dimpred
 
 # History:
+# 2026/10/02: an empty MKL_NUM_THREADS (as from MATLAB) is removed before torch is imported
 # 2026/10/02: --rise, --n-masks and --png for the RISE heatmaps (dimpred.rise)
 # 2026/10/02: new default model alignet_siglip2b_66d_ridge
 # 2026/09/30: written for the first release of the package
@@ -93,6 +94,13 @@ def main(argv=None):
     program with one message and exit code 1 (wrong arguments with exit
     code 2), without a Python traceback.
     """
+
+    # MATLAB starts Python with MKL_NUM_THREADS set to an empty text, and
+    # torch then warns on every run that the value is invalid. Without the
+    # variable, torch uses its default number of threads, as it does anyway.
+    # torch is only imported later, in extract_features and rise.
+    if os.environ.get("MKL_NUM_THREADS") == "":
+        del os.environ["MKL_NUM_THREADS"]
 
     parser = argparse.ArgumentParser(
         prog="python -m dimpred",
