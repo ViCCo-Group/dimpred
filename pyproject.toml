@@ -4,17 +4,19 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dimpred"
-version = "1.0.0"
+version = "1.1.0"
 description = "Predict the SPoSE dimensions of human object representations and perceived similarity for any image"
 readme = "README.md"
 license = {file = "LICENSE"}
 requires-python = ">=3.9"
 authors = [{name = "Philipp Kaniuth"}, {name = "Florian P. Mahner"}, {name = "Jonas Perkuhn"}, {name = "Martin N. Hebart"}]
-dependencies = ["numpy", "scipy"]
+# scipy 1.6 or newer for ndimage.zoom with grid_mode (the masks of dimpred/rise.py)
+dependencies = ["numpy", "scipy>=1.6"]
 
 [project.optional-dependencies]
-# feature extraction from images (not needed if you already have features)
-extract = ["torch", "open_clip_torch", "pillow"]
+# feature extraction from images (not needed if you already have features);
+# AligNet needs timm 1.0.15 or newer (dimpred/alignet.py)
+extract = ["torch", "open_clip_torch", "timm>=1.0.15", "pillow"]
 test = ["pytest"]
 
 [tool.setuptools]

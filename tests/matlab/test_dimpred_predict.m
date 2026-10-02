@@ -29,11 +29,12 @@
 %   runtests('test_dimpred_predict')
 % or all MATLAB tests with run_dimpred_tests.
 %
-% Martin Hebart, 2026/09/30
+% Hebartlab, 2026/09/30
 %
 % See also DIMPRED_PREDICT, DIMPRED_LOAD_MODEL, RUN_DIMPRED_TESTS
 
 % History:
+% 2026/10/02: new default model alignet_siglip2b_66d_ridge (768 AligNet features)
 % 2026/09/30: NaN and Inf give an error, as in Python
 % 2026/09/30: after review: column vector gives an error, failure messages
 %   for all checks, header says where expected_* come from
@@ -101,11 +102,11 @@ end
 
 function test_default_model_is_used_without_model(testCase)
 ref = testCase.TestData.ref;
-expected = ref.expected_vitb32_66d_elastic;
-testCase.verifyEqual(dimpred_predict(ref.features_vitb32), expected, 'AbsTol', 1e-10, ...
-    'dimpred_predict(features) should use the default model vitb32_66d_elastic');
-testCase.verifyEqual(dimpred_predict(ref.features_vitb32, []), expected, 'AbsTol', 1e-10, ...
-    'dimpred_predict(features, []) should use the default model vitb32_66d_elastic');
+expected = ref.expected_alignet_siglip2b_66d_ridge;
+testCase.verifyEqual(dimpred_predict(ref.features_alignet), expected, 'AbsTol', 1e-10, ...
+    'dimpred_predict(features) should use the default model alignet_siglip2b_66d_ridge');
+testCase.verifyEqual(dimpred_predict(ref.features_alignet, []), expected, 'AbsTol', 1e-10, ...
+    'dimpred_predict(features, []) should use the default model alignet_siglip2b_66d_ridge');
 end
 
 
@@ -203,10 +204,10 @@ end
 function test_single_row_gives_one_row(testCase)
 ref = testCase.TestData.ref;
 row = 7;
-embedding = dimpred_predict(ref.features_vitb32(row, :));
+embedding = dimpred_predict(ref.features_alignet(row, :));
 testCase.verifySize(embedding, [1 66], 'One image (1 x n_features) should give 1 x n_dims');
-testCase.verifyEqual(embedding, ref.expected_vitb32_66d_elastic(row, :), 'AbsTol', 1e-10, ...
-    sprintf('Row %i predicted alone differs from expected_vitb32_66d_elastic', row));
+testCase.verifyEqual(embedding, ref.expected_alignet_siglip2b_66d_ridge(row, :), 'AbsTol', 1e-10, ...
+    sprintf('Row %i predicted alone differs from expected_alignet_siglip2b_66d_ridge', row));
 end
 
 function test_column_vector_gives_error(testCase)
@@ -215,7 +216,7 @@ function test_column_vector_gives_error(testCase)
 % feature each, so we give an error instead of guessing that it was meant
 % as one image. (Python accepts a 1D vector, which has no orientation.)
 ref = testCase.TestData.ref;
-testCase.verifyError(@() dimpred_predict(ref.features_vitb32(1, :)'), 'dimpred:wrongFeatureCount', ...
+testCase.verifyError(@() dimpred_predict(ref.features_alignet(1, :)'), 'dimpred:wrongFeatureCount', ...
     'A column vector (n_features x 1) should give an error, one image has to be a row');
 end
 
@@ -242,7 +243,7 @@ function test_single_precision_input_is_computed_in_double(testCase)
 % Features from the extraction are single (float32). They have to be
 % converted to double before the computation, and the result is double.
 ref = testCase.TestData.ref;
-features = single(ref.features_vitb32(1:5, :));
+features = single(ref.features_alignet(1:5, :));
 embedding = dimpred_predict(features);
 testCase.verifyClass(embedding, 'double', 'Predictions should be double, also for single features');
 testCase.verifyEqual(embedding, dimpred_predict(double(features)), 'AbsTol', 1e-12, ...
@@ -267,10 +268,12 @@ end
 function test_wrong_feature_count_gives_error(testCase)
 ref = testCase.TestData.ref;
 testCase.verifyError(@() dimpred_predict(ref.features_rn50x64(1:2, :)), 'dimpred:wrongFeatureCount', ...
-    'RN50x64 features (1024) with the default model (512 features) should give an error');
+    'RN50x64 features (1024) with the default model (768 features) should give an error');
+testCase.verifyError(@() dimpred_predict(ref.features_vitb32(1:2, :)), 'dimpred:wrongFeatureCount', ...
+    'ViT-B-32-quickgelu features (512) with the default model (768 features) should give an error');
 testCase.verifyError(@() dimpred_predict(ref.features_vitb32(1:2, :), 'rn50x64_49d_ridge'), 'dimpred:wrongFeatureCount', ...
     'ViT-B-32-quickgelu features (512) with an RN50x64 model (1024 features) should give an error');
-testCase.verifyError(@() dimpred_predict(ref.features_vitb32(1:2, :)'), 'dimpred:wrongFeatureCount', ...
+testCase.verifyError(@() dimpred_predict(ref.features_alignet(1:2, :)'), 'dimpred:wrongFeatureCount', ...
     'Transposed features (features x images) should give an error');
 end
 
@@ -279,7 +282,7 @@ function test_nan_or_inf_gives_error(testCase)
 % look like real values, so both have to give an error
 ref = testCase.TestData.ref;
 for value = [NaN Inf -Inf]
-    features = ref.features_vitb32(1:4, :);
+    features = ref.features_alignet(1:4, :);
     features(3, 11) = value;
     testCase.verifyError(@() dimpred_predict(features), 'dimpred:notFinite', ...
         sprintf('Features with %g should give an error', value));
@@ -307,16 +310,20 @@ end
 function names = shipped_models()
 % Names of the shipped models, sorted alphabetically (same list in
 % test_dimpred_load_model.m and test_dimpred_fixtures.m)
-names = {'rn50x64_49d_ridge'; 'rn50x64_66d_elastic'; 'rn50x64_66d_ridge'; 'vitb32_66d_elastic'};
+names = {'alignet_siglip2b_66d_ridge'; 'rn50x64_49d_ridge'; 'rn50x64_66d_elastic'; 'rn50x64_66d_ridge'; ...
+    'vitb32_66d_elastic'};
 end
 
 function features = features_for_model(ref, name)
 % The RN50x64 models need RN50x64 features, the ViT model ViT-B-32-quickgelu
-% features (same function in test_dimpred_validation_human.m)
+% features, the AligNet model AligNet SigLIP2-B features (same function in
+% test_dimpred_validation_human.m)
 if startsWith(name, 'rn50x64')
     features = ref.features_rn50x64;
 elseif startsWith(name, 'vitb32')
     features = ref.features_vitb32;
+elseif startsWith(name, 'alignet')
+    features = ref.features_alignet;
 else
     error('No fixture features for model %s', name)
 end

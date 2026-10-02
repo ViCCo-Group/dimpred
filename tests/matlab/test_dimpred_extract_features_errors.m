@@ -35,7 +35,7 @@
 %   runtests('test_dimpred_extract_features_errors')
 % or all MATLAB tests with run_dimpred_tests (also in 'fast' mode).
 %
-% Martin Hebart, 2026/09/30
+% Hebartlab, 2026/09/30
 %
 % See also DIMPRED_EXTRACT_FEATURES, TEST_DIMPRED_EXTRACT_FEATURES,
 %   RUN_DIMPRED_TESTS

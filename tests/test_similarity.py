@@ -13,7 +13,7 @@ definition (symmetry, mean of 1/3, permutations). Large embedding values must
 not give nan or inf. Users compute the similarity of hundreds or thousands
 of images, so it also has to be fast (slow test).
 
-Martin Hebart, 2026/09/30
+Hebartlab, 2026/09/30
 
 See also: test_validation_human.py
 """

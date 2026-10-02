@@ -14,7 +14,7 @@ that happened in earlier versions of this code:
     - z-scoring with wrong statistics, e.g. subtracting the mean twice or
       using the mean of the given images instead of the training images
 
-Martin Hebart, 2026/09/30
+Hebartlab, 2026/09/30
 
 See also: test_load_model.py, test_validation_human.py, test_package.py
 """
@@ -29,6 +29,7 @@ from helpers import (DEFAULT_MODEL, MODEL_NAMES, MODELS, MODELS_DIR, TOL_FRESH_P
                      features_for)
 
 # History:
+# 2026/10/02: the default model is alignet_siglip2b_66d_ridge (768 AligNet features)
 # 2026/09/30: nan and inf give an error, as in MATLAB
 # 2026/09/30: predictions of the CC0 reference features, transposed features,
 #   one behavior per test; the test without torch moved to test_package.py
@@ -67,7 +68,7 @@ def test_cc0_reference_features_give_philipps_published_predictions(ref):
 
 
 def test_default_model_is_used_if_no_model_is_given(ref):
-    prediction = dimpred.predict(ref["features_vitb32"])
+    prediction = dimpred.predict(features_for(ref, DEFAULT_MODEL))
     assert_close(prediction, ref["expected_" + DEFAULT_MODEL], TOL_MODEL, "predict without model vs default model")
 
 
@@ -172,7 +173,7 @@ def test_predicting_some_images_gives_the_same_rows(ref, rows):
     # Predictions must not depend on which other images are predicted at the
     # same time. This fails if the features are z-scored with the mean and std
     # of the given images instead of those of the training images.
-    features = ref["features_vitb32"]
+    features = features_for(ref, DEFAULT_MODEL)
     all_rows = dimpred.predict(features)
     assert_close(dimpred.predict(features[rows]), all_rows[rows], 1e-12, "prediction of a subset of images")
 
@@ -188,26 +189,26 @@ def test_permuting_images_permutes_predictions(ref):
 # --- form of the input
 
 def test_one_feature_vector_gives_one_row(ref):
-    features = ref["features_vitb32"]
+    features = features_for(ref, DEFAULT_MODEL)
     prediction = dimpred.predict(features[5])
     assert prediction.shape == (1, 66), f"shape is {prediction.shape}, expected (1, 66)"
     assert_close(prediction, dimpred.predict(features[5:6]), 0, "1-D input vs one row")
 
 
 def test_list_of_rows_gives_the_same_result_as_an_array(ref):
-    features = ref["features_vitb32"][:4]
+    features = features_for(ref, DEFAULT_MODEL)[:4]
     assert_close(dimpred.predict(features.tolist()), dimpred.predict(features), 0, "list input vs array input")
 
 
 def test_list_of_numbers_gives_one_row(ref):
-    features = ref["features_vitb32"][0]
+    features = features_for(ref, DEFAULT_MODEL)[0]
     assert_close(dimpred.predict(list(features)), dimpred.predict(features[None, :]), 0, "list of numbers vs one row")
 
 
 def test_float32_input_is_computed_in_float64(ref):
     # extract_features returns float32. These have to be converted to float64
     # before z-scoring, then the result equals that for the same numbers in float64.
-    features32 = ref["features_vitb32"][:10].astype(np.float32)
+    features32 = features_for(ref, DEFAULT_MODEL)[:10].astype(np.float32)
     prediction = dimpred.predict(features32)
     assert prediction.dtype == np.float64, f"dtype is {prediction.dtype}"
     assert_close(prediction, dimpred.predict(features32.astype(np.float64)), 1e-12, "float32 vs float64 input")
@@ -215,7 +216,7 @@ def test_float32_input_is_computed_in_float64(ref):
 
 @pytest.mark.parametrize("dtype", [np.float64, np.float32])
 def test_input_features_are_not_changed(ref, dtype):
-    features = ref["features_vitb32"][:10].astype(dtype)
+    features = features_for(ref, DEFAULT_MODEL)[:10].astype(dtype)
     before = features.copy()
     dimpred.predict(features)
     np.testing.assert_array_equal(features, before, err_msg="predict changed its input")
@@ -243,6 +244,7 @@ def test_model_can_be_given_by_name_path_or_dict(ref):
 @pytest.mark.parametrize("name, features_key, network, n_expected", [
     ("vitb32_66d_elastic", "features_rn50x64", "ViT-B-32-quickgelu", 512),
     ("rn50x64_49d_ridge", "features_vitb32", "RN50x64", 1024),
+    ("alignet_siglip2b_66d_ridge", "features_vitb32", "AligNet SigLIP2-B", 768),
 ])
 def test_wrong_number_of_features_gives_error_with_model_network_and_count(ref, name, features_key, network,
                                                                           n_expected):
@@ -267,7 +269,7 @@ def test_features_with_images_in_columns_give_error(ref, shape):
 def test_nan_or_inf_in_features_gives_error(ref, value):
     # nan would give nan predictions, and -inf would give predictions of 0
     # that look like real values, so both have to give an error
-    features = ref["features_vitb32"][:4].copy()
+    features = features_for(ref, DEFAULT_MODEL)[:4].copy()
     features[2, 10] = value
     with pytest.raises(ValueError, match="nan or inf"):
         dimpred.predict(features)

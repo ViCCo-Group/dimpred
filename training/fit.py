@@ -17,6 +17,14 @@ from sklearn.model_selection import RepeatedKFold
 from sklearn.multioutput import MultiOutputRegressor
 from sklearn.preprocessing import StandardScaler
 
+# History:
+# 2026/10/02: ridge_cv, a ridge regression that keeps the penalty chosen by
+#   cross-validation, is now "ridge"; the fractional ridge of the DimPred
+#   paper is now "fracridge"
+# 2026/09/30: moved from dimpred/fit.py to training/; fracridge_cv with one
+#   SVD per fold (the same weights, much faster); scikit-learn 1.7 and newer
+# Philipp Kaniuth's code of the DimPred paper otherwise
+
 # scikit-learn 1.7 replaced ElasticNetCV(n_alphas=...) by ElasticNetCV(alphas=<int>)
 # and 1.9 removed n_alphas. Both give the same grid of alphas. Only the first
 # two numbers of the version are used, so that e.g. "1.7rc1" works as well.
@@ -81,6 +89,12 @@ def fit_model_with(
         Column-wise z-transformed training predictor matrix.
     y_train_c : ndarray
         Column-wise centered targets.
+    regularization : {"ridge", "fracridge", "elastic"}
+        "ridge": ridge regression with the penalty chosen directly (ridge_cv,
+        lambda from 1e-6 to 1e3, 8 values per decade). "fracridge": the
+        fractional ridge regression of the DimPred paper (fracridge_cv, 70
+        fractions from 0.1 to 1); until 2026/10/02 this was called "ridge".
+        "elastic": elastic net (ElasticNetCV).
     n_splits : int
         Determines the number of folds for the inner cross-validation, defaults
         to 5.
@@ -95,8 +109,14 @@ def fit_model_with(
     model : object or ndarray
         One statistical model fitted separately for each of multiple targets
         with target-specific optimal hyperparameters. For "elastic" this is a
-        fitted MultiOutputRegressor, for "ridge" the weight matrix of shape
-        (n_units, n_targets) (see fracridge_cv).
+        fitted MultiOutputRegressor, for "ridge" and "fracridge" the weight
+        matrix of shape (n_units, n_targets) (see ridge_cv and fracridge_cv).
+    alphas : list, ndarray or None
+        Selected alpha of each target: for "elastic" the alpha of
+        ElasticNetCV, for "ridge" the penalty of the refit on the
+        sum-of-squares scale (see ridge_cv), for "fracridge" None.
+    l1_ratios : list or None
+        Selected l1 ratio of each target for "elastic", else None.
     """
     cv = RepeatedKFold(
         n_splits=n_splits, n_repeats=n_repeats, random_state=random_state
@@ -126,6 +146,18 @@ def fit_model_with(
             model.estimators_[i].l1_ratio_ for i in range(len(model.estimators_))
         ]
     elif regularization == "ridge":
+        # model is the weight matrix (n_units, n_targets), see ridge_cv.
+        # lambda is the penalty per image, 8 values per decade from 1e-6 to
+        # 1e3 (for the shipped models the selected values are 0.18 to 1.8,
+        # far from both ends).
+        model, _, alphas = ridge_cv(
+            X_train_z,
+            y_train_c,
+            lambda_grid=np.logspace(-6, 3, 73),
+            cv=cv,
+        )
+        l1_ratios = None
+    elif regularization == "fracridge":
         # model is the weight matrix (n_units, n_targets), see fracridge_cv
         model, _ = fracridge_cv(
             X_train_z,
@@ -134,12 +166,105 @@ def fit_model_with(
             cv=cv,
         )
         alphas, l1_ratios = None, None
+    else:
+        raise ValueError(
+            f"regularization has to be 'ridge', 'fracridge' or 'elastic', not {regularization!r}"
+        )
     print("...fitted model...")
     return model, alphas, l1_ratios
 
 
+def ridge_cv(X_train_z, y_train_c, lambda_grid, cv):
+    """Ridge regression with a cross-validated penalty per target.
+
+    This is the ridge regression of "ridge" since 2026/10/02. It replaces the
+    fractional ridge regression (fracridge_cv) for new models, because
+    fracridge_cv does not refit with the penalty it selected: it selects a
+    fraction in the inner folds and refits on all data with the same
+    fraction. But the penalty (alpha) that gives a fraction depends on the
+    data, and for all data it is very different from the one in the inner
+    folds. With the 70 fractions of fit_model_with, the refit of RN50x64 for
+    the 66d embedding used a median of 9.4 times the alpha of the inner
+    folds (4.1 to 110 times across dimensions), the refit of CLIP ViT-B/32 a
+    median of 0.02 times. So the refit shrinks much more or much less than
+    the inner cross-validation chose. Here the penalty itself is selected
+    and kept.
+
+    The penalty is on a per-image scale: for a lambda in lambda_grid, ridge
+    minimizes the mean squared error + lambda * ||beta||^2, i.e. the sum of
+    squares + alpha * ||beta||^2 with alpha = n * lambda, where n is the
+    number of training images. In each inner fold, alpha = n_train * lambda
+    with the training images of that fold. As in GridSearchCV, the lambda
+    with the highest mean R^2 across folds is selected for each target (the
+    first one in case of ties). The model is then refit on all data with
+    the alpha of the inner folds, alpha = mean n_train * lambda (e.g. 1236 *
+    lambda for 1854 images and 3 folds), so that the refit uses the penalty
+    that was chosen. Refitting with alpha = 1854 * lambda instead (the
+    convention of ElasticNetCV) shrank more and predicted worse, both per
+    dimension and on new images.
+
+    As in fracridge_cv, all targets and penalties are solved from one SVD
+    per fold. With X = U S V', the weights are
+    beta = V diag(s / (s^2 + alpha)) U' y, and the held-out predictions of
+    all penalties and targets come from one matrix product. There is no
+    intercept, because X_train_z and y_train_c are z-scored and centered
+    (as for fracridge_cv). The weights are those of scikit-learn's
+    Ridge(alpha=alpha, fit_intercept=False) on the same data.
+
+    Parameters
+    ----------
+    X_train_z : ndarray
+        Column-wise z-transformed training predictor matrix.
+    y_train_c : ndarray
+        Column-wise centered targets, shape (n_images, n_targets).
+    lambda_grid : array-like
+        Penalties per image to test (lambda, see above).
+    cv : cross-validation generator
+        E.g. RepeatedKFold. Only its split() method is used.
+
+    Returns
+    -------
+    coef : ndarray
+        Regression weights, shape (n_units, n_targets).
+    best_lambda : ndarray
+        Selected lambda for each target, shape (n_targets,).
+    alpha : ndarray
+        Penalty of the refit for each target (mean n_train * best_lambda),
+        shape (n_targets,).
+    """
+    lambda_grid = np.asarray(lambda_grid, dtype=float)
+    n_targets, n_lambdas = y_train_c.shape[1], len(lambda_grid)
+    scores = np.zeros((n_lambdas, n_targets))
+    n_train = []
+    for train, test in cv.split(X_train_z):
+        U, s, Vt = np.linalg.svd(X_train_z[train], full_matrices=False)
+        UTy = U.T @ y_train_c[train]
+        # shrinkage of each singular value for all lambdas: (n_lambdas, n_singular_values)
+        d = s[None, :] / (s[None, :] ** 2 + len(train) * lambda_grid[:, None])
+        # weights of all lambdas and targets in the basis V (shrunk U' y),
+        # then the predictions of all of them at once: (n_test, n_lambdas, n_targets)
+        UTy_shrunk = (d.T[:, :, None] * UTy[:, None, :]).reshape(len(s), n_lambdas * n_targets)
+        y_hat = ((X_train_z[test] @ Vt.T) @ UTy_shrunk).reshape(len(test), n_lambdas, n_targets)
+        y_true = y_train_c[test]
+        ss_res = ((y_true[:, None, :] - y_hat) ** 2).sum(axis=0)
+        ss_tot = ((y_true - y_true.mean(axis=0)) ** 2).sum(axis=0)
+        scores += 1 - ss_res / ss_tot  # R^2, as sklearn's default score
+        n_train.append(len(train))
+    best = np.argmax(scores / len(n_train), axis=0)
+    best_lambda = lambda_grid[best]
+    # refit on all data with the alpha of the inner folds
+    alpha = np.mean(n_train) * best_lambda
+    U, s, Vt = np.linalg.svd(X_train_z, full_matrices=False)
+    coef = Vt.T @ (s[:, None] / (s[:, None] ** 2 + alpha[None, :]) * (U.T @ y_train_c))
+    return coef, best_lambda, alpha
+
+
 def fracridge_cv(X_train_z, y_train_c, frac_grid, cv):
     """Fractional ridge regression with a cross-validated fraction per target.
+
+    This is the ridge regression of the DimPred paper ("fracridge", until
+    2026/10/02 called "ridge"). For new models use ridge_cv, which keeps the
+    selected penalty at the refit (see there).
 
     This gives the same result as
     ``MultiOutputRegressor(FracRidgeRegressorCV()).fit(X, y, frac_grid=...)``,
@@ -206,9 +331,10 @@ def get_predictions_for(model, X_test_z, y_train_mean):
     ----------
     model : object or ndarray
         A fitted MultiOutputRegressor for "elastic", the weight matrix
-        (n_units, n_targets) from fracridge_cv for "ridge". Ridge models
-        saved by the earlier version of this module (e.g. the models on OSF)
-        are MultiOutputRegressor objects as well and work too.
+        (n_units, n_targets) from ridge_cv for "ridge" or from fracridge_cv
+        for "fracridge". Ridge models saved by the earlier version of this
+        module (e.g. the models on OSF) are MultiOutputRegressor objects as
+        well and work too.
     X_test_z : nd.array
         Test predictor matrix that had been z-transformed column-wise with
         X_train's standardizer.
@@ -220,7 +346,7 @@ def get_predictions_for(model, X_test_z, y_train_mean):
     y_predicted : nd.array
         Predictions for each target.
     """
-    if isinstance(model, np.ndarray):  # ridge: weight matrix from fracridge_cv
+    if isinstance(model, np.ndarray):  # ridge, fracridge: weight matrix
         y_predicted = X_test_z @ model + y_train_mean
     else:
         y_predicted = model.predict(X_test_z) + y_train_mean
@@ -251,8 +377,9 @@ def predict_spose_for_1854ref_with(
     y : ndarray
         Ground truth SPoSE embedding of the 1854 reference images.
         Expected shape is (n_images, n_dims).
-    regularization : {"ridge", "elastic"}
-        Denotes which regularization scheme shall be used.
+    regularization : {"ridge", "fracridge", "elastic"}
+        Denotes which regularization scheme shall be used (see
+        fit_model_with).
     k_out : int, optional
         Determines the number of folds for the outer cross-validation. The
         default is 2.
@@ -315,8 +442,9 @@ def train_model_with(X, y, regularization, k_in=2, n_in=1, random_state=None):
     y : ndarray
         Ground truth SPoSE embedding of the 1854 reference images.
         Expected shape is (n_images, n_dims).
-    regularization : {"ridge", "elastic"}
-        Denotes which regularization scheme shall be used.
+    regularization : {"ridge", "fracridge", "elastic"}
+        Denotes which regularization scheme shall be used (see
+        fit_model_with).
     k_in : int
         Determines the number of folds for the inner cross-validation in
         which the best hyperparameter is determined.
@@ -331,7 +459,7 @@ def train_model_with(X, y, regularization, k_in=2, n_in=1, random_state=None):
     -------
     fitted_model : object or ndarray
         A fitted MultiOutputRegressor for "elastic", the weight matrix
-        (n_units, n_targets) from fracridge_cv for "ridge".
+        (n_units, n_targets) for "ridge" and "fracridge".
         Can be saved for later use.
     """
     X_train_z, y_train_c, X_standardizer, y_train_mean = preprocess_data(X, y)
@@ -358,7 +486,7 @@ def predict_spose_for_new_imgset_with(fitted_model, X, y):
     ----------
     fitted_model : object or ndarray
         A fitted MultiOutputRegressor for "elastic", the weight matrix
-        (n_units, n_targets) from fracridge_cv for "ridge" (see
+        (n_units, n_targets) for "ridge" and "fracridge" (see
         get_predictions_for).
     X : dict
         Each key holds image activations of a specific deep neural

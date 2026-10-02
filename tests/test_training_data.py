@@ -11,7 +11,7 @@ check that the embeddings and labels fit the list.
 
 These tests need no extra packages and always run.
 
-Martin Hebart, 2026/09/30
+Hebartlab, 2026/09/30
 
 See also: ../training/build_models.py, test_model_files.py
 """

@@ -28,7 +28,7 @@
 %
 % Input:
 %   model: one of
-%          [] or omitted: the default model, vitb32_66d_elastic
+%          [] or omitted: the default model, alignet_siglip2b_66d_ridge
 %          name:   a model that comes with dimpred (see dimpred_list_models)
 %          file:   path of a model file (.mat), absolute or relative to the
 %                  current folder (the MATLAB path is not searched)
@@ -49,18 +49,19 @@
 %   disp(model.info.network)  % RN50x64
 %   disp(size(model.weights)) % 1024 49
 %
-% Martin Hebart, 2026/09/30
+% Hebartlab, 2026/09/30
 %
 % See also DIMPRED_LIST_MODELS, DIMPRED_PREDICT
 
 % History:
+% 2026/10/02: new default model alignet_siglip2b_66d_ridge
 % 2026/09/30: written for the first release of the package
 
 function model = dimpred_load_model(model)
 
 % The model that is used when no model is given (DEFAULT_MODEL in Python).
 % The other functions get the default from here.
-default_model = 'vitb32_66d_elastic';
+default_model = 'alignet_siglip2b_66d_ridge';
 
 % A model that was already loaded
 if exist('model', 'var') && isstruct(model)

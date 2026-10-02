@@ -8,7 +8,7 @@ importing torch takes several seconds and a lot of memory, which would make
 every call of the command line tool slow. Each test runs a new Python
 process, because the test process itself may have imported torch already.
 
-Martin Hebart, 2026/09/30
+Hebartlab, 2026/09/30
 
 See also: test_cli.py, test_extract_features_errors.py
 """
@@ -20,9 +20,10 @@ import sys
 import numpy as np
 import pytest
 
-from helpers import DEFAULT_MODEL, IMAGES, TOL_MODEL, assert_close, output_of, python_env
+from helpers import DEFAULT_MODEL, IMAGES, TOL_MODEL, assert_close, features_for, output_of, python_env
 
 # History:
+# 2026/10/02: features of the network of the default model (AligNet SigLIP2-B)
 # 2026/09/30: new file; the test without torch moved here from test_predict.py,
 #   and a test that importing dimpred does not import torch
 
@@ -49,7 +50,7 @@ def run_python(code, cwd):
 def test_package_works_without_torch(ref, tmp_path):
     # torch and open_clip cannot be imported in this process, as if they
     # were not installed
-    np.save(tmp_path / "features.npy", ref["features_vitb32"][:5])
+    np.save(tmp_path / "features.npy", features_for(ref, DEFAULT_MODEL)[:5])
     block_torch = (
         "import sys\n"
         "for name in ('torch', 'torchvision', 'open_clip'):\n"
@@ -63,11 +64,11 @@ def test_package_works_without_torch(ref, tmp_path):
 
 @pytest.mark.skipif(not TORCH_INSTALLED, reason="torch is not installed, so dimpred cannot import it")
 def test_dimpred_does_not_import_torch(ref, tmp_path):
-    np.save(tmp_path / "features.npy", ref["features_vitb32"][:5])
+    np.save(tmp_path / "features.npy", features_for(ref, DEFAULT_MODEL)[:5])
     check = (
         "import sys\n"
         "with open('imported.txt', 'w') as f:\n"
-        "    f.write(','.join(m for m in ('torch', 'open_clip') if m in sys.modules))\n"
+        "    f.write(','.join(m for m in ('torch', 'open_clip', 'timm') if m in sys.modules))\n"
     )
     result = run_python(USE_DIMPRED + check, tmp_path)
     assert result.returncode == 0, f"dimpred failed\n{output_of(result)}"

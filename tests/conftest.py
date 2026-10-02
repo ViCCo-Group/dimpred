@@ -13,9 +13,11 @@ part of the repository. If they are missing, the tests that need them fail and
 are not skipped, because without them we cannot check any numbers. Tests are
 only skipped if an optional program or package is missing (torch, open_clip,
 MATLAB, scikit-learn) or an optional large file that is not in the repository
-(the features of the 1854 reference images for the training test).
+(the features of the 1854 reference images for the training test, the
+weights of the AligNet network: set DIMPRED_ALIGNET_WEIGHTS to
+alignet_siglip2_b.safetensors, the tests never download it).
 
-Martin Hebart, 2026/09/30
+Hebartlab, 2026/09/30
 
 See also: helpers.py
 """
@@ -27,6 +29,7 @@ import sys
 import pytest
 
 # History:
+# 2026/10/02: fixture alignet_available (AligNet weights and timm)
 # 2026/09/30: the marker "slow" is only registered in pyproject.toml; second
 #   order of the CC0 images (cc0_paths_reordered)
 # 2026/09/30: written together with the tests, before the package code
@@ -93,3 +96,13 @@ def open_clip_available():
 
     pytest.importorskip("torch", reason="feature extraction needs torch")
     pytest.importorskip("open_clip", reason="feature extraction needs open_clip_torch")
+
+
+@pytest.fixture(scope="session")
+def alignet_available(open_clip_available):
+    """Skip the test if the AligNet weights are not available without a download (see helpers.alignet_weights)."""
+
+    pytest.importorskip("timm", reason="AligNet needs timm (comes with open_clip_torch)")
+    pytest.importorskip("safetensors", reason="AligNet needs safetensors (comes with open_clip_torch)")
+    if helpers.alignet_weights() is None:
+        pytest.skip("AligNet weights not found (set DIMPRED_ALIGNET_WEIGHTS to alignet_siglip2_b.safetensors)")

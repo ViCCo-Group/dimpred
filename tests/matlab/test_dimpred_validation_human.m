@@ -22,11 +22,12 @@
 %   runtests('test_dimpred_validation_human')
 % or all MATLAB tests with run_dimpred_tests.
 %
-% Martin Hebart, 2026/09/30
+% Hebartlab, 2026/09/30
 %
 % See also DIMPRED_PREDICT, DIMPRED_SIMILARITY, RUN_DIMPRED_TESTS
 
 % History:
+% 2026/10/02: new model alignet_siglip2b_66d_ridge
 % 2026/09/30: written before the code (test-driven development)
 
 function tests = test_dimpred_validation_human
@@ -57,6 +58,10 @@ end
 
 
 %% One test per model
+
+function test_human_similarity_alignet_siglip2b_66d_ridge(testCase)
+verify_human_r(testCase, 'alignet_siglip2b_66d_ridge');
+end
 
 function test_human_similarity_rn50x64_49d_ridge(testCase)
 verify_human_r(testCase, 'rn50x64_49d_ridge');
@@ -93,11 +98,14 @@ end
 
 function features = features_for_model(ref, name)
 % The RN50x64 models need RN50x64 features, the ViT model ViT-B-32-quickgelu
-% features (same function in test_dimpred_predict.m)
+% features, the AligNet model AligNet SigLIP2-B features (same function in
+% test_dimpred_predict.m)
 if startsWith(name, 'rn50x64')
     features = ref.features_rn50x64;
 elseif startsWith(name, 'vitb32')
     features = ref.features_vitb32;
+elseif startsWith(name, 'alignet')
+    features = ref.features_alignet;
 else
     error('No fixture features for model %s', name)
 end

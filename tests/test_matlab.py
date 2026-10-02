@@ -12,7 +12,7 @@ the matlab program), then in /Applications/MATLAB_*/bin/matlab, then on the
 system path. If it is not found, all tests here are skipped. Starting MATLAB
 takes about 20 s.
 
-Martin Hebart, 2026/09/30
+Hebartlab, 2026/09/30
 
 See also: tests/matlab
 """
@@ -30,6 +30,7 @@ from helpers import (DEFAULT_MODEL, IMAGES, MATLAB_CODE, MATLAB_TESTS, MODEL_NAM
                      assert_close, assert_features_match, features_for, load_mat, output_of, python_env)
 
 # History:
+# 2026/10/02: AligNet features for the new default model alignet_siglip2b_66d_ridge
 # 2026/09/30: the extraction order test uses a second unsorted order
 # 2026/09/30: written together with the tests, before the package code
 
@@ -112,6 +113,8 @@ for i = 1:numel(out.names)
     model = dimpred_load_model(name);
     if strcmp(model.info.network, 'RN50x64')
         features = ref.features_rn50x64;
+    elseif strcmp(model.info.network, 'AligNet SigLIP2-B')
+        features = ref.features_alignet;
     else
         features = ref.features_vitb32;
     end
@@ -120,7 +123,7 @@ for i = 1:numel(out.names)
     out.(['similarity_' name]) = dimpred_similarity(out.(['embedding_' name])(rows, :));
 end
 out.embedding_by_name = dimpred_predict(ref.features_rn50x64, 'rn50x64_49d_ridge');
-out.embedding_default = dimpred_predict(ref.features_vitb32);
+out.embedding_default = dimpred_predict(ref.features_alignet);
 out.similarity_dot = dimpred_similarity(ref.expected_rn50x64_49d_ridge(1:10, :), 'dot');
 out.found_images = dimpred_find_images('{IMAGES}');
 save('{out_file}', '-struct', 'out');

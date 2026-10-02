@@ -2,8 +2,8 @@
 %
 % Tests for dimpred_load_model and dimpred_list_models.
 %
-% We check that the four shipped models are found by name, that the default
-% model is vitb32_66d_elastic, that every model has all fields with sizes
+% We check that the five shipped models are found by name, that the default
+% model is alignet_siglip2b_66d_ridge, that every model has all fields with sizes
 % that fit together, that each model names the network it was trained with,
 % and that wrong input gives an error with a message that helps the user.
 %
@@ -19,11 +19,12 @@
 %   runtests('test_dimpred_load_model')
 % or all MATLAB tests with run_dimpred_tests.
 %
-% Martin Hebart, 2026/09/30
+% Hebartlab, 2026/09/30
 %
 % See also DIMPRED_LOAD_MODEL, DIMPRED_LIST_MODELS, RUN_DIMPRED_TESTS
 
 % History:
+% 2026/10/02: new default model alignet_siglip2b_66d_ridge (AligNet SigLIP2-B)
 % 2026/09/30: after review: numbers compared with the file, models found
 %   from any current folder, relative path to a model file, NaN and Inf in
 %   feature_scale and target_mean
@@ -55,16 +56,16 @@ end
 function test_list_models_gives_shipped_models(testCase)
 names = dimpred_list_models;
 testCase.verifyEqual(names, shipped_models(), ...
-    'dimpred_list_models should return the names of the 4 shipped models as a sorted cell column');
+    'dimpred_list_models should return the names of the 5 shipped models as a sorted cell column');
 end
 
-function test_default_model_is_vitb32_66d_elastic(testCase)
+function test_default_model_is_alignet_siglip2b_66d_ridge(testCase)
 model = dimpred_load_model;
-testCase.verifyEqual(model.info.name, 'vitb32_66d_elastic', ...
-    'Without input, dimpred_load_model should load vitb32_66d_elastic');
+testCase.verifyEqual(model.info.name, 'alignet_siglip2b_66d_ridge', ...
+    'Without input, dimpred_load_model should load alignet_siglip2b_66d_ridge');
 model = dimpred_load_model([]);
-testCase.verifyEqual(model.info.name, 'vitb32_66d_elastic', ...
-    'dimpred_load_model([]) should load vitb32_66d_elastic');
+testCase.verifyEqual(model.info.name, 'alignet_siglip2b_66d_ridge', ...
+    'dimpred_load_model([]) should load alignet_siglip2b_66d_ridge');
 end
 
 
@@ -123,21 +124,24 @@ end
 end
 
 function test_models_use_their_network(testCase)
-% Table of the shipped models (as in README.md, section Models)
-%   name                   network               n_features  n_dims
+% Table of the shipped models (as in README.md and docs/models.md). The
+% CLIP networks are open_clip networks with the openai weights, AligNet
+% SigLIP2-B is run by dimpred/alignet.py with its own weights.
+%   name                          network               pretrained                       n_features  n_dims
 expected = {
-    'rn50x64_49d_ridge',   'RN50x64',             1024,       49
-    'rn50x64_66d_elastic', 'RN50x64',             1024,       66
-    'rn50x64_66d_ridge',   'RN50x64',             1024,       66
-    'vitb32_66d_elastic',  'ViT-B-32-quickgelu',   512,       66
+    'alignet_siglip2b_66d_ridge', 'AligNet SigLIP2-B',  'alignet_siglip2_b.safetensors',  768,       66
+    'rn50x64_49d_ridge',          'RN50x64',            'openai',                        1024,       49
+    'rn50x64_66d_elastic',        'RN50x64',            'openai',                        1024,       66
+    'rn50x64_66d_ridge',          'RN50x64',            'openai',                        1024,       66
+    'vitb32_66d_elastic',         'ViT-B-32-quickgelu', 'openai',                         512,       66
     };
 for i_model = 1:size(expected, 1)
-    [name, network, n_features, n_dims] = expected{i_model, :};
+    [name, network, pretrained, n_features, n_dims] = expected{i_model, :};
     model = dimpred_load_model(name);
     testCase.verifyEqual(model.info.network, network, ...
-        sprintf('Model %s should use the open_clip network %s', name, network));
-    testCase.verifyEqual(model.info.pretrained, 'openai', ...
-        sprintf('Model %s should use the openai weights', name));
+        sprintf('Model %s should use the network %s', name, network));
+    testCase.verifyTrue(startsWith(model.info.pretrained, pretrained), ...
+        sprintf('Model %s should use the weights %s, info.pretrained is %s', name, pretrained, model.info.pretrained));
     testCase.verifySize(model.weights, [n_features n_dims], ...
         sprintf('Model %s should map %i features to %i dimensions', name, n_features, n_dims));
 end
@@ -343,7 +347,8 @@ function names = shipped_models()
 % test_dimpred_predict.m and test_dimpred_fixtures.m, so that each test
 % file can be read on its own. test_list_models_gives_shipped_models fails
 % when a model is added and the lists need updating.
-names = {'rn50x64_49d_ridge'; 'rn50x64_66d_elastic'; 'rn50x64_66d_ridge'; 'vitb32_66d_elastic'};
+names = {'alignet_siglip2b_66d_ridge'; 'rn50x64_49d_ridge'; 'rn50x64_66d_elastic'; 'rn50x64_66d_ridge'; ...
+    'vitb32_66d_elastic'};
 end
 
 function lines = read_lines(fname)

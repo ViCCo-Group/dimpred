@@ -25,7 +25,7 @@
 %   runtests('test_dimpred_find_images')
 % or all MATLAB tests with run_dimpred_tests.
 %
-% Martin Hebart, 2026/09/30
+% Hebartlab, 2026/09/30
 %
 % See also DIMPRED_FIND_IMAGES, RUN_DIMPRED_TESTS
 

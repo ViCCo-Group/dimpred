@@ -1,0 +1,169 @@
+torch_name	shape	flax_names	operation
+encoder.patch_embed.proj.weight	[768, 3, 16, 16]	model/_Model_0/embedding/kernel	transpose HWIO -> OIHW
+encoder.patch_embed.proj.bias	[768]	model/_Model_0/embedding/bias	
+encoder.pos_embed	[1, 196, 768]	model/_Model_0/pos_embedding	
+encoder.blocks.0.norm1.weight	[768]	model/_Model_0/Transformer/encoderblock_0/LayerNorm_0/scale	
+encoder.blocks.0.norm1.bias	[768]	model/_Model_0/Transformer/encoderblock_0/LayerNorm_0/bias	
+encoder.blocks.0.attn.qkv.weight	[2304, 768]	model/_Model_0/Transformer/encoderblock_0/MultiHeadDotProductAttention_0/query/kernel, model/_Model_0/Transformer/encoderblock_0/MultiHeadDotProductAttention_0/key/kernel, model/_Model_0/Transformer/encoderblock_0/MultiHeadDotProductAttention_0/value/kernel	reshape 768 x 768, transpose, stack q, k, v
+encoder.blocks.0.attn.qkv.bias	[2304]	model/_Model_0/Transformer/encoderblock_0/MultiHeadDotProductAttention_0/query/bias, model/_Model_0/Transformer/encoderblock_0/MultiHeadDotProductAttention_0/key/bias, model/_Model_0/Transformer/encoderblock_0/MultiHeadDotProductAttention_0/value/bias	reshape 768, stack q, k, v
+encoder.blocks.0.attn.proj.weight	[768, 768]	model/_Model_0/Transformer/encoderblock_0/MultiHeadDotProductAttention_0/out/kernel	reshape 768 x 768, transpose
+encoder.blocks.0.attn.proj.bias	[768]	model/_Model_0/Transformer/encoderblock_0/MultiHeadDotProductAttention_0/out/bias	
+encoder.blocks.0.norm2.weight	[768]	model/_Model_0/Transformer/encoderblock_0/LayerNorm_1/scale	
+encoder.blocks.0.norm2.bias	[768]	model/_Model_0/Transformer/encoderblock_0/LayerNorm_1/bias	
+encoder.blocks.0.mlp.fc1.weight	[3072, 768]	model/_Model_0/Transformer/encoderblock_0/MlpBlock_0/Dense_0/kernel	transpose
+encoder.blocks.0.mlp.fc1.bias	[3072]	model/_Model_0/Transformer/encoderblock_0/MlpBlock_0/Dense_0/bias	
+encoder.blocks.0.mlp.fc2.weight	[768, 3072]	model/_Model_0/Transformer/encoderblock_0/MlpBlock_0/Dense_1/kernel	transpose
+encoder.blocks.0.mlp.fc2.bias	[768]	model/_Model_0/Transformer/encoderblock_0/MlpBlock_0/Dense_1/bias	
+encoder.blocks.1.norm1.weight	[768]	model/_Model_0/Transformer/encoderblock_1/LayerNorm_0/scale	
+encoder.blocks.1.norm1.bias	[768]	model/_Model_0/Transformer/encoderblock_1/LayerNorm_0/bias	
+encoder.blocks.1.attn.qkv.weight	[2304, 768]	model/_Model_0/Transformer/encoderblock_1/MultiHeadDotProductAttention_0/query/kernel, model/_Model_0/Transformer/encoderblock_1/MultiHeadDotProductAttention_0/key/kernel, model/_Model_0/Transformer/encoderblock_1/MultiHeadDotProductAttention_0/value/kernel	reshape 768 x 768, transpose, stack q, k, v
+encoder.blocks.1.attn.qkv.bias	[2304]	model/_Model_0/Transformer/encoderblock_1/MultiHeadDotProductAttention_0/query/bias, model/_Model_0/Transformer/encoderblock_1/MultiHeadDotProductAttention_0/key/bias, model/_Model_0/Transformer/encoderblock_1/MultiHeadDotProductAttention_0/value/bias	reshape 768, stack q, k, v
+encoder.blocks.1.attn.proj.weight	[768, 768]	model/_Model_0/Transformer/encoderblock_1/MultiHeadDotProductAttention_0/out/kernel	reshape 768 x 768, transpose
+encoder.blocks.1.attn.proj.bias	[768]	model/_Model_0/Transformer/encoderblock_1/MultiHeadDotProductAttention_0/out/bias	
+encoder.blocks.1.norm2.weight	[768]	model/_Model_0/Transformer/encoderblock_1/LayerNorm_1/scale	
+encoder.blocks.1.norm2.bias	[768]	model/_Model_0/Transformer/encoderblock_1/LayerNorm_1/bias	
+encoder.blocks.1.mlp.fc1.weight	[3072, 768]	model/_Model_0/Transformer/encoderblock_1/MlpBlock_0/Dense_0/kernel	transpose
+encoder.blocks.1.mlp.fc1.bias	[3072]	model/_Model_0/Transformer/encoderblock_1/MlpBlock_0/Dense_0/bias	
+encoder.blocks.1.mlp.fc2.weight	[768, 3072]	model/_Model_0/Transformer/encoderblock_1/MlpBlock_0/Dense_1/kernel	transpose
+encoder.blocks.1.mlp.fc2.bias	[768]	model/_Model_0/Transformer/encoderblock_1/MlpBlock_0/Dense_1/bias	
+encoder.blocks.2.norm1.weight	[768]	model/_Model_0/Transformer/encoderblock_2/LayerNorm_0/scale	
+encoder.blocks.2.norm1.bias	[768]	model/_Model_0/Transformer/encoderblock_2/LayerNorm_0/bias	
+encoder.blocks.2.attn.qkv.weight	[2304, 768]	model/_Model_0/Transformer/encoderblock_2/MultiHeadDotProductAttention_0/query/kernel, model/_Model_0/Transformer/encoderblock_2/MultiHeadDotProductAttention_0/key/kernel, model/_Model_0/Transformer/encoderblock_2/MultiHeadDotProductAttention_0/value/kernel	reshape 768 x 768, transpose, stack q, k, v
+encoder.blocks.2.attn.qkv.bias	[2304]	model/_Model_0/Transformer/encoderblock_2/MultiHeadDotProductAttention_0/query/bias, model/_Model_0/Transformer/encoderblock_2/MultiHeadDotProductAttention_0/key/bias, model/_Model_0/Transformer/encoderblock_2/MultiHeadDotProductAttention_0/value/bias	reshape 768, stack q, k, v
+encoder.blocks.2.attn.proj.weight	[768, 768]	model/_Model_0/Transformer/encoderblock_2/MultiHeadDotProductAttention_0/out/kernel	reshape 768 x 768, transpose
+encoder.blocks.2.attn.proj.bias	[768]	model/_Model_0/Transformer/encoderblock_2/MultiHeadDotProductAttention_0/out/bias	
+encoder.blocks.2.norm2.weight	[768]	model/_Model_0/Transformer/encoderblock_2/LayerNorm_1/scale	
+encoder.blocks.2.norm2.bias	[768]	model/_Model_0/Transformer/encoderblock_2/LayerNorm_1/bias	
+encoder.blocks.2.mlp.fc1.weight	[3072, 768]	model/_Model_0/Transformer/encoderblock_2/MlpBlock_0/Dense_0/kernel	transpose
+encoder.blocks.2.mlp.fc1.bias	[3072]	model/_Model_0/Transformer/encoderblock_2/MlpBlock_0/Dense_0/bias	
+encoder.blocks.2.mlp.fc2.weight	[768, 3072]	model/_Model_0/Transformer/encoderblock_2/MlpBlock_0/Dense_1/kernel	transpose
+encoder.blocks.2.mlp.fc2.bias	[768]	model/_Model_0/Transformer/encoderblock_2/MlpBlock_0/Dense_1/bias	
+encoder.blocks.3.norm1.weight	[768]	model/_Model_0/Transformer/encoderblock_3/LayerNorm_0/scale	
+encoder.blocks.3.norm1.bias	[768]	model/_Model_0/Transformer/encoderblock_3/LayerNorm_0/bias	
+encoder.blocks.3.attn.qkv.weight	[2304, 768]	model/_Model_0/Transformer/encoderblock_3/MultiHeadDotProductAttention_0/query/kernel, model/_Model_0/Transformer/encoderblock_3/MultiHeadDotProductAttention_0/key/kernel, model/_Model_0/Transformer/encoderblock_3/MultiHeadDotProductAttention_0/value/kernel	reshape 768 x 768, transpose, stack q, k, v
+encoder.blocks.3.attn.qkv.bias	[2304]	model/_Model_0/Transformer/encoderblock_3/MultiHeadDotProductAttention_0/query/bias, model/_Model_0/Transformer/encoderblock_3/MultiHeadDotProductAttention_0/key/bias, model/_Model_0/Transformer/encoderblock_3/MultiHeadDotProductAttention_0/value/bias	reshape 768, stack q, k, v
+encoder.blocks.3.attn.proj.weight	[768, 768]	model/_Model_0/Transformer/encoderblock_3/MultiHeadDotProductAttention_0/out/kernel	reshape 768 x 768, transpose
+encoder.blocks.3.attn.proj.bias	[768]	model/_Model_0/Transformer/encoderblock_3/MultiHeadDotProductAttention_0/out/bias	
+encoder.blocks.3.norm2.weight	[768]	model/_Model_0/Transformer/encoderblock_3/LayerNorm_1/scale	
+encoder.blocks.3.norm2.bias	[768]	model/_Model_0/Transformer/encoderblock_3/LayerNorm_1/bias	
+encoder.blocks.3.mlp.fc1.weight	[3072, 768]	model/_Model_0/Transformer/encoderblock_3/MlpBlock_0/Dense_0/kernel	transpose
+encoder.blocks.3.mlp.fc1.bias	[3072]	model/_Model_0/Transformer/encoderblock_3/MlpBlock_0/Dense_0/bias	
+encoder.blocks.3.mlp.fc2.weight	[768, 3072]	model/_Model_0/Transformer/encoderblock_3/MlpBlock_0/Dense_1/kernel	transpose
+encoder.blocks.3.mlp.fc2.bias	[768]	model/_Model_0/Transformer/encoderblock_3/MlpBlock_0/Dense_1/bias	
+encoder.blocks.4.norm1.weight	[768]	model/_Model_0/Transformer/encoderblock_4/LayerNorm_0/scale	
+encoder.blocks.4.norm1.bias	[768]	model/_Model_0/Transformer/encoderblock_4/LayerNorm_0/bias	
+encoder.blocks.4.attn.qkv.weight	[2304, 768]	model/_Model_0/Transformer/encoderblock_4/MultiHeadDotProductAttention_0/query/kernel, model/_Model_0/Transformer/encoderblock_4/MultiHeadDotProductAttention_0/key/kernel, model/_Model_0/Transformer/encoderblock_4/MultiHeadDotProductAttention_0/value/kernel	reshape 768 x 768, transpose, stack q, k, v
+encoder.blocks.4.attn.qkv.bias	[2304]	model/_Model_0/Transformer/encoderblock_4/MultiHeadDotProductAttention_0/query/bias, model/_Model_0/Transformer/encoderblock_4/MultiHeadDotProductAttention_0/key/bias, model/_Model_0/Transformer/encoderblock_4/MultiHeadDotProductAttention_0/value/bias	reshape 768, stack q, k, v
+encoder.blocks.4.attn.proj.weight	[768, 768]	model/_Model_0/Transformer/encoderblock_4/MultiHeadDotProductAttention_0/out/kernel	reshape 768 x 768, transpose
+encoder.blocks.4.attn.proj.bias	[768]	model/_Model_0/Transformer/encoderblock_4/MultiHeadDotProductAttention_0/out/bias	
+encoder.blocks.4.norm2.weight	[768]	model/_Model_0/Transformer/encoderblock_4/LayerNorm_1/scale	
+encoder.blocks.4.norm2.bias	[768]	model/_Model_0/Transformer/encoderblock_4/LayerNorm_1/bias	
+encoder.blocks.4.mlp.fc1.weight	[3072, 768]	model/_Model_0/Transformer/encoderblock_4/MlpBlock_0/Dense_0/kernel	transpose
+encoder.blocks.4.mlp.fc1.bias	[3072]	model/_Model_0/Transformer/encoderblock_4/MlpBlock_0/Dense_0/bias	
+encoder.blocks.4.mlp.fc2.weight	[768, 3072]	model/_Model_0/Transformer/encoderblock_4/MlpBlock_0/Dense_1/kernel	transpose
+encoder.blocks.4.mlp.fc2.bias	[768]	model/_Model_0/Transformer/encoderblock_4/MlpBlock_0/Dense_1/bias	
+encoder.blocks.5.norm1.weight	[768]	model/_Model_0/Transformer/encoderblock_5/LayerNorm_0/scale	
+encoder.blocks.5.norm1.bias	[768]	model/_Model_0/Transformer/encoderblock_5/LayerNorm_0/bias	
+encoder.blocks.5.attn.qkv.weight	[2304, 768]	model/_Model_0/Transformer/encoderblock_5/MultiHeadDotProductAttention_0/query/kernel, model/_Model_0/Transformer/encoderblock_5/MultiHeadDotProductAttention_0/key/kernel, model/_Model_0/Transformer/encoderblock_5/MultiHeadDotProductAttention_0/value/kernel	reshape 768 x 768, transpose, stack q, k, v
+encoder.blocks.5.attn.qkv.bias	[2304]	model/_Model_0/Transformer/encoderblock_5/MultiHeadDotProductAttention_0/query/bias, model/_Model_0/Transformer/encoderblock_5/MultiHeadDotProductAttention_0/key/bias, model/_Model_0/Transformer/encoderblock_5/MultiHeadDotProductAttention_0/value/bias	reshape 768, stack q, k, v
+encoder.blocks.5.attn.proj.weight	[768, 768]	model/_Model_0/Transformer/encoderblock_5/MultiHeadDotProductAttention_0/out/kernel	reshape 768 x 768, transpose
+encoder.blocks.5.attn.proj.bias	[768]	model/_Model_0/Transformer/encoderblock_5/MultiHeadDotProductAttention_0/out/bias	
+encoder.blocks.5.norm2.weight	[768]	model/_Model_0/Transformer/encoderblock_5/LayerNorm_1/scale	
+encoder.blocks.5.norm2.bias	[768]	model/_Model_0/Transformer/encoderblock_5/LayerNorm_1/bias	
+encoder.blocks.5.mlp.fc1.weight	[3072, 768]	model/_Model_0/Transformer/encoderblock_5/MlpBlock_0/Dense_0/kernel	transpose
+encoder.blocks.5.mlp.fc1.bias	[3072]	model/_Model_0/Transformer/encoderblock_5/MlpBlock_0/Dense_0/bias	
+encoder.blocks.5.mlp.fc2.weight	[768, 3072]	model/_Model_0/Transformer/encoderblock_5/MlpBlock_0/Dense_1/kernel	transpose
+encoder.blocks.5.mlp.fc2.bias	[768]	model/_Model_0/Transformer/encoderblock_5/MlpBlock_0/Dense_1/bias	
+encoder.blocks.6.norm1.weight	[768]	model/_Model_0/Transformer/encoderblock_6/LayerNorm_0/scale	
+encoder.blocks.6.norm1.bias	[768]	model/_Model_0/Transformer/encoderblock_6/LayerNorm_0/bias	
+encoder.blocks.6.attn.qkv.weight	[2304, 768]	model/_Model_0/Transformer/encoderblock_6/MultiHeadDotProductAttention_0/query/kernel, model/_Model_0/Transformer/encoderblock_6/MultiHeadDotProductAttention_0/key/kernel, model/_Model_0/Transformer/encoderblock_6/MultiHeadDotProductAttention_0/value/kernel	reshape 768 x 768, transpose, stack q, k, v
+encoder.blocks.6.attn.qkv.bias	[2304]	model/_Model_0/Transformer/encoderblock_6/MultiHeadDotProductAttention_0/query/bias, model/_Model_0/Transformer/encoderblock_6/MultiHeadDotProductAttention_0/key/bias, model/_Model_0/Transformer/encoderblock_6/MultiHeadDotProductAttention_0/value/bias	reshape 768, stack q, k, v
+encoder.blocks.6.attn.proj.weight	[768, 768]	model/_Model_0/Transformer/encoderblock_6/MultiHeadDotProductAttention_0/out/kernel	reshape 768 x 768, transpose
+encoder.blocks.6.attn.proj.bias	[768]	model/_Model_0/Transformer/encoderblock_6/MultiHeadDotProductAttention_0/out/bias	
+encoder.blocks.6.norm2.weight	[768]	model/_Model_0/Transformer/encoderblock_6/LayerNorm_1/scale	
+encoder.blocks.6.norm2.bias	[768]	model/_Model_0/Transformer/encoderblock_6/LayerNorm_1/bias	
+encoder.blocks.6.mlp.fc1.weight	[3072, 768]	model/_Model_0/Transformer/encoderblock_6/MlpBlock_0/Dense_0/kernel	transpose
+encoder.blocks.6.mlp.fc1.bias	[3072]	model/_Model_0/Transformer/encoderblock_6/MlpBlock_0/Dense_0/bias	
+encoder.blocks.6.mlp.fc2.weight	[768, 3072]	model/_Model_0/Transformer/encoderblock_6/MlpBlock_0/Dense_1/kernel	transpose
+encoder.blocks.6.mlp.fc2.bias	[768]	model/_Model_0/Transformer/encoderblock_6/MlpBlock_0/Dense_1/bias	
+encoder.blocks.7.norm1.weight	[768]	model/_Model_0/Transformer/encoderblock_7/LayerNorm_0/scale	
+encoder.blocks.7.norm1.bias	[768]	model/_Model_0/Transformer/encoderblock_7/LayerNorm_0/bias	
+encoder.blocks.7.attn.qkv.weight	[2304, 768]	model/_Model_0/Transformer/encoderblock_7/MultiHeadDotProductAttention_0/query/kernel, model/_Model_0/Transformer/encoderblock_7/MultiHeadDotProductAttention_0/key/kernel, model/_Model_0/Transformer/encoderblock_7/MultiHeadDotProductAttention_0/value/kernel	reshape 768 x 768, transpose, stack q, k, v
+encoder.blocks.7.attn.qkv.bias	[2304]	model/_Model_0/Transformer/encoderblock_7/MultiHeadDotProductAttention_0/query/bias, model/_Model_0/Transformer/encoderblock_7/MultiHeadDotProductAttention_0/key/bias, model/_Model_0/Transformer/encoderblock_7/MultiHeadDotProductAttention_0/value/bias	reshape 768, stack q, k, v
+encoder.blocks.7.attn.proj.weight	[768, 768]	model/_Model_0/Transformer/encoderblock_7/MultiHeadDotProductAttention_0/out/kernel	reshape 768 x 768, transpose
+encoder.blocks.7.attn.proj.bias	[768]	model/_Model_0/Transformer/encoderblock_7/MultiHeadDotProductAttention_0/out/bias	
+encoder.blocks.7.norm2.weight	[768]	model/_Model_0/Transformer/encoderblock_7/LayerNorm_1/scale	
+encoder.blocks.7.norm2.bias	[768]	model/_Model_0/Transformer/encoderblock_7/LayerNorm_1/bias	
+encoder.blocks.7.mlp.fc1.weight	[3072, 768]	model/_Model_0/Transformer/encoderblock_7/MlpBlock_0/Dense_0/kernel	transpose
+encoder.blocks.7.mlp.fc1.bias	[3072]	model/_Model_0/Transformer/encoderblock_7/MlpBlock_0/Dense_0/bias	
+encoder.blocks.7.mlp.fc2.weight	[768, 3072]	model/_Model_0/Transformer/encoderblock_7/MlpBlock_0/Dense_1/kernel	transpose
+encoder.blocks.7.mlp.fc2.bias	[768]	model/_Model_0/Transformer/encoderblock_7/MlpBlock_0/Dense_1/bias	
+encoder.blocks.8.norm1.weight	[768]	model/_Model_0/Transformer/encoderblock_8/LayerNorm_0/scale	
+encoder.blocks.8.norm1.bias	[768]	model/_Model_0/Transformer/encoderblock_8/LayerNorm_0/bias	
+encoder.blocks.8.attn.qkv.weight	[2304, 768]	model/_Model_0/Transformer/encoderblock_8/MultiHeadDotProductAttention_0/query/kernel, model/_Model_0/Transformer/encoderblock_8/MultiHeadDotProductAttention_0/key/kernel, model/_Model_0/Transformer/encoderblock_8/MultiHeadDotProductAttention_0/value/kernel	reshape 768 x 768, transpose, stack q, k, v
+encoder.blocks.8.attn.qkv.bias	[2304]	model/_Model_0/Transformer/encoderblock_8/MultiHeadDotProductAttention_0/query/bias, model/_Model_0/Transformer/encoderblock_8/MultiHeadDotProductAttention_0/key/bias, model/_Model_0/Transformer/encoderblock_8/MultiHeadDotProductAttention_0/value/bias	reshape 768, stack q, k, v
+encoder.blocks.8.attn.proj.weight	[768, 768]	model/_Model_0/Transformer/encoderblock_8/MultiHeadDotProductAttention_0/out/kernel	reshape 768 x 768, transpose
+encoder.blocks.8.attn.proj.bias	[768]	model/_Model_0/Transformer/encoderblock_8/MultiHeadDotProductAttention_0/out/bias	
+encoder.blocks.8.norm2.weight	[768]	model/_Model_0/Transformer/encoderblock_8/LayerNorm_1/scale	
+encoder.blocks.8.norm2.bias	[768]	model/_Model_0/Transformer/encoderblock_8/LayerNorm_1/bias	
+encoder.blocks.8.mlp.fc1.weight	[3072, 768]	model/_Model_0/Transformer/encoderblock_8/MlpBlock_0/Dense_0/kernel	transpose
+encoder.blocks.8.mlp.fc1.bias	[3072]	model/_Model_0/Transformer/encoderblock_8/MlpBlock_0/Dense_0/bias	
+encoder.blocks.8.mlp.fc2.weight	[768, 3072]	model/_Model_0/Transformer/encoderblock_8/MlpBlock_0/Dense_1/kernel	transpose
+encoder.blocks.8.mlp.fc2.bias	[768]	model/_Model_0/Transformer/encoderblock_8/MlpBlock_0/Dense_1/bias	
+encoder.blocks.9.norm1.weight	[768]	model/_Model_0/Transformer/encoderblock_9/LayerNorm_0/scale	
+encoder.blocks.9.norm1.bias	[768]	model/_Model_0/Transformer/encoderblock_9/LayerNorm_0/bias	
+encoder.blocks.9.attn.qkv.weight	[2304, 768]	model/_Model_0/Transformer/encoderblock_9/MultiHeadDotProductAttention_0/query/kernel, model/_Model_0/Transformer/encoderblock_9/MultiHeadDotProductAttention_0/key/kernel, model/_Model_0/Transformer/encoderblock_9/MultiHeadDotProductAttention_0/value/kernel	reshape 768 x 768, transpose, stack q, k, v
+encoder.blocks.9.attn.qkv.bias	[2304]	model/_Model_0/Transformer/encoderblock_9/MultiHeadDotProductAttention_0/query/bias, model/_Model_0/Transformer/encoderblock_9/MultiHeadDotProductAttention_0/key/bias, model/_Model_0/Transformer/encoderblock_9/MultiHeadDotProductAttention_0/value/bias	reshape 768, stack q, k, v
+encoder.blocks.9.attn.proj.weight	[768, 768]	model/_Model_0/Transformer/encoderblock_9/MultiHeadDotProductAttention_0/out/kernel	reshape 768 x 768, transpose
+encoder.blocks.9.attn.proj.bias	[768]	model/_Model_0/Transformer/encoderblock_9/MultiHeadDotProductAttention_0/out/bias	
+encoder.blocks.9.norm2.weight	[768]	model/_Model_0/Transformer/encoderblock_9/LayerNorm_1/scale	
+encoder.blocks.9.norm2.bias	[768]	model/_Model_0/Transformer/encoderblock_9/LayerNorm_1/bias	
+encoder.blocks.9.mlp.fc1.weight	[3072, 768]	model/_Model_0/Transformer/encoderblock_9/MlpBlock_0/Dense_0/kernel	transpose
+encoder.blocks.9.mlp.fc1.bias	[3072]	model/_Model_0/Transformer/encoderblock_9/MlpBlock_0/Dense_0/bias	
+encoder.blocks.9.mlp.fc2.weight	[768, 3072]	model/_Model_0/Transformer/encoderblock_9/MlpBlock_0/Dense_1/kernel	transpose
+encoder.blocks.9.mlp.fc2.bias	[768]	model/_Model_0/Transformer/encoderblock_9/MlpBlock_0/Dense_1/bias	
+encoder.blocks.10.norm1.weight	[768]	model/_Model_0/Transformer/encoderblock_10/LayerNorm_0/scale	
+encoder.blocks.10.norm1.bias	[768]	model/_Model_0/Transformer/encoderblock_10/LayerNorm_0/bias	
+encoder.blocks.10.attn.qkv.weight	[2304, 768]	model/_Model_0/Transformer/encoderblock_10/MultiHeadDotProductAttention_0/query/kernel, model/_Model_0/Transformer/encoderblock_10/MultiHeadDotProductAttention_0/key/kernel, model/_Model_0/Transformer/encoderblock_10/MultiHeadDotProductAttention_0/value/kernel	reshape 768 x 768, transpose, stack q, k, v
+encoder.blocks.10.attn.qkv.bias	[2304]	model/_Model_0/Transformer/encoderblock_10/MultiHeadDotProductAttention_0/query/bias, model/_Model_0/Transformer/encoderblock_10/MultiHeadDotProductAttention_0/key/bias, model/_Model_0/Transformer/encoderblock_10/MultiHeadDotProductAttention_0/value/bias	reshape 768, stack q, k, v
+encoder.blocks.10.attn.proj.weight	[768, 768]	model/_Model_0/Transformer/encoderblock_10/MultiHeadDotProductAttention_0/out/kernel	reshape 768 x 768, transpose
+encoder.blocks.10.attn.proj.bias	[768]	model/_Model_0/Transformer/encoderblock_10/MultiHeadDotProductAttention_0/out/bias	
+encoder.blocks.10.norm2.weight	[768]	model/_Model_0/Transformer/encoderblock_10/LayerNorm_1/scale	
+encoder.blocks.10.norm2.bias	[768]	model/_Model_0/Transformer/encoderblock_10/LayerNorm_1/bias	
+encoder.blocks.10.mlp.fc1.weight	[3072, 768]	model/_Model_0/Transformer/encoderblock_10/MlpBlock_0/Dense_0/kernel	transpose
+encoder.blocks.10.mlp.fc1.bias	[3072]	model/_Model_0/Transformer/encoderblock_10/MlpBlock_0/Dense_0/bias	
+encoder.blocks.10.mlp.fc2.weight	[768, 3072]	model/_Model_0/Transformer/encoderblock_10/MlpBlock_0/Dense_1/kernel	transpose
+encoder.blocks.10.mlp.fc2.bias	[768]	model/_Model_0/Transformer/encoderblock_10/MlpBlock_0/Dense_1/bias	
+encoder.blocks.11.norm1.weight	[768]	model/_Model_0/Transformer/encoderblock_11/LayerNorm_0/scale	
+encoder.blocks.11.norm1.bias	[768]	model/_Model_0/Transformer/encoderblock_11/LayerNorm_0/bias	
+encoder.blocks.11.attn.qkv.weight	[2304, 768]	model/_Model_0/Transformer/encoderblock_11/MultiHeadDotProductAttention_0/query/kernel, model/_Model_0/Transformer/encoderblock_11/MultiHeadDotProductAttention_0/key/kernel, model/_Model_0/Transformer/encoderblock_11/MultiHeadDotProductAttention_0/value/kernel	reshape 768 x 768, transpose, stack q, k, v
+encoder.blocks.11.attn.qkv.bias	[2304]	model/_Model_0/Transformer/encoderblock_11/MultiHeadDotProductAttention_0/query/bias, model/_Model_0/Transformer/encoderblock_11/MultiHeadDotProductAttention_0/key/bias, model/_Model_0/Transformer/encoderblock_11/MultiHeadDotProductAttention_0/value/bias	reshape 768, stack q, k, v
+encoder.blocks.11.attn.proj.weight	[768, 768]	model/_Model_0/Transformer/encoderblock_11/MultiHeadDotProductAttention_0/out/kernel	reshape 768 x 768, transpose
+encoder.blocks.11.attn.proj.bias	[768]	model/_Model_0/Transformer/encoderblock_11/MultiHeadDotProductAttention_0/out/bias	
+encoder.blocks.11.norm2.weight	[768]	model/_Model_0/Transformer/encoderblock_11/LayerNorm_1/scale	
+encoder.blocks.11.norm2.bias	[768]	model/_Model_0/Transformer/encoderblock_11/LayerNorm_1/bias	
+encoder.blocks.11.mlp.fc1.weight	[3072, 768]	model/_Model_0/Transformer/encoderblock_11/MlpBlock_0/Dense_0/kernel	transpose
+encoder.blocks.11.mlp.fc1.bias	[3072]	model/_Model_0/Transformer/encoderblock_11/MlpBlock_0/Dense_0/bias	
+encoder.blocks.11.mlp.fc2.weight	[768, 3072]	model/_Model_0/Transformer/encoderblock_11/MlpBlock_0/Dense_1/kernel	transpose
+encoder.blocks.11.mlp.fc2.bias	[768]	model/_Model_0/Transformer/encoderblock_11/MlpBlock_0/Dense_1/bias	
+encoder.norm.weight	[768]	model/_Model_0/Transformer/encoder_norm/scale	
+encoder.norm.bias	[768]	model/_Model_0/Transformer/encoder_norm/bias	
+encoder.attn_pool.latent	[1, 1, 768]	model/_Model_0/MAPHead_0/probe	
+encoder.attn_pool.q.weight	[768, 768]	model/_Model_0/MAPHead_0/MultiHeadDotProductAttention_0/query/kernel	reshape 768 x 768, transpose
+encoder.attn_pool.q.bias	[768]	model/_Model_0/MAPHead_0/MultiHeadDotProductAttention_0/query/bias	reshape 768
+encoder.attn_pool.kv.weight	[1536, 768]	model/_Model_0/MAPHead_0/MultiHeadDotProductAttention_0/key/kernel, model/_Model_0/MAPHead_0/MultiHeadDotProductAttention_0/value/kernel	reshape 768 x 768, transpose, stack k, v
+encoder.attn_pool.kv.bias	[1536]	model/_Model_0/MAPHead_0/MultiHeadDotProductAttention_0/key/bias, model/_Model_0/MAPHead_0/MultiHeadDotProductAttention_0/value/bias	reshape 768, stack k, v
+encoder.attn_pool.proj.weight	[768, 768]	model/_Model_0/MAPHead_0/MultiHeadDotProductAttention_0/out/kernel	reshape 768 x 768, transpose
+encoder.attn_pool.proj.bias	[768]	model/_Model_0/MAPHead_0/MultiHeadDotProductAttention_0/out/bias	
+encoder.attn_pool.norm.weight	[768]	model/_Model_0/MAPHead_0/LayerNorm_0/scale	
+encoder.attn_pool.norm.bias	[768]	model/_Model_0/MAPHead_0/LayerNorm_0/bias	
+encoder.attn_pool.mlp.fc1.weight	[3072, 768]	model/_Model_0/MAPHead_0/MlpBlock_0/Dense_0/kernel	transpose
+encoder.attn_pool.mlp.fc1.bias	[3072]	model/_Model_0/MAPHead_0/MlpBlock_0/Dense_0/bias	
+encoder.attn_pool.mlp.fc2.weight	[768, 3072]	model/_Model_0/MAPHead_0/MlpBlock_0/Dense_1/kernel	transpose
+encoder.attn_pool.mlp.fc2.bias	[768]	model/_Model_0/MAPHead_0/MlpBlock_0/Dense_1/bias	
+triplet_head.weight	[1024, 768]	triplet_head/kernel	transpose
+triplet_head.bias	[1024]	triplet_head/bias	
+i1k_norm.weight	[768]	i1k_head/norm/scale	
+i1k_norm.bias	[768]	i1k_head/norm/bias	
+i1k_head.weight	[1000, 768]	i1k_head/dense/kernel	transpose
+i1k_head.bias	[1000]	i1k_head/dense/bias	

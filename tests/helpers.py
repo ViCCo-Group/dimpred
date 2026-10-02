@@ -7,7 +7,7 @@ on the Python path). The pytest fixtures are in conftest.py.
 The numbers here (model table, tolerances) are kept in one place, so that all
 tests use the same values. The MATLAB tests use the same tolerances.
 
-Martin Hebart, 2026/09/30
+Hebartlab, 2026/09/30
 
 See also: conftest.py
 """
@@ -21,6 +21,10 @@ import numpy as np
 import scipy.io
 
 # History:
+# 2026/10/02: fixture with the ridge fits of the DimPred benchmark
+# 2026/10/02: new default model alignet_siglip2b_66d_ridge (AligNet
+#   SigLIP2-B features in the fixtures, tolerance of the AligNet features,
+#   where to find the AligNet weights); regression of each model
 # 2026/09/30: tolerances of the training tests, second order of the CC0
 #   images, reference SPoSE similarity (moved here from test_similarity.py),
 #   helpers to check which modules a process imported
@@ -31,6 +35,7 @@ REPO = os.path.dirname(TESTS)
 FIXTURES = os.path.join(TESTS, "fixtures")
 REFERENCE_FILE = os.path.join(FIXTURES, "reference_data.mat")
 ORIGINAL_RIDGE_FILE = os.path.join(FIXTURES, "philipp_original_ridge_rn50x64_66d.mat")
+BENCHMARK_RIDGE_FILE = os.path.join(FIXTURES, "benchmark_ridge_fits.mat")
 IMAGES = os.path.join(FIXTURES, "images")
 MODELS_DIR = os.path.join(REPO, "dimpred", "models")
 MATLAB_CODE = os.path.join(REPO, "matlab")
@@ -38,11 +43,15 @@ MATLAB_TESTS = os.path.join(TESTS, "matlab")
 TRAINING = os.path.join(REPO, "training")
 TRAINING_DATA = os.path.join(TRAINING, "data")
 
-DEFAULT_MODEL = "vitb32_66d_elastic"
+DEFAULT_MODEL = "alignet_siglip2b_66d_ridge"
+ALIGNET = "AligNet SigLIP2-B"  # the network of the default model (not an open_clip network)
 
-# The shipped models (table in README.md, section Models)
+# The shipped models (table in README.md and docs/models.md). regression is
+# "ridge" (ridge with the penalty chosen directly), "fracridge" (fractional
+# ridge of the DimPred paper) or "elastic" (elastic net).
 MODELS = {
-    "rn50x64_49d_ridge": dict(network="RN50x64", n_features=1024, n_dims=49, regression="ridge"),
+    "alignet_siglip2b_66d_ridge": dict(network=ALIGNET, n_features=768, n_dims=66, regression="ridge"),
+    "rn50x64_49d_ridge": dict(network="RN50x64", n_features=1024, n_dims=49, regression="fracridge"),
     "rn50x64_66d_elastic": dict(network="RN50x64", n_features=1024, n_dims=66, regression="elastic"),
     "rn50x64_66d_ridge": dict(network="RN50x64", n_features=1024, n_dims=66, regression="ridge"),
     "vitb32_66d_elastic": dict(network="ViT-B-32-quickgelu", n_features=512, n_dims=66, regression="elastic"),
@@ -50,8 +59,9 @@ MODELS = {
 MODEL_NAMES = sorted(MODELS)
 
 # Variables in reference_data.mat that hold the features of each network
-FEATURES_KEY = {"RN50x64": "features_rn50x64", "ViT-B-32-quickgelu": "features_vitb32"}
-CC0_FEATURES_KEY = {"RN50x64": "cc0_features_rn50x64", "ViT-B-32-quickgelu": "cc0_features_vitb32"}
+FEATURES_KEY = {"RN50x64": "features_rn50x64", "ViT-B-32-quickgelu": "features_vitb32", ALIGNET: "features_alignet"}
+CC0_FEATURES_KEY = {"RN50x64": "cc0_features_rn50x64", "ViT-B-32-quickgelu": "cc0_features_vitb32",
+                    ALIGNET: "cc0_features_alignet"}
 
 # Most tests use the CC0 images in the order of cc0_files, which is not
 # sorted. The tests of the row order use this second order (rows 3, 1, 2 of
@@ -65,6 +75,13 @@ TOL_EXTRACT_R = 0.99999    # extracted vs reference features: minimum correlatio
 TOL_EXTRACT_DIFF = 2e-3    # extracted vs reference features: maximum abs difference (devices differ a bit)
 TOL_FRESH_PREDICTION = 2e-3  # predictions from freshly extracted features vs published predictions
 TOL_HUMAN_R = 0.002        # correlation between predicted and human similarity
+
+# AligNet features of the PyTorch port vs the TensorFlow features of the same
+# images: float32 rounding gives differences of up to 3e-5 for the same
+# input arrays, and up to 3e-4 from the image file (pixel values that are
+# exactly x.5 before rounding in the resize, e.g. 3e-4 for siren_01b). The
+# CC0 images used here differ by 1.5e-5 (cpu).
+TOL_ALIGNET_DIFF = 1e-4
 
 # Tolerances of the training tests.
 # When the sped-up and the original ridge code select the same fraction,
@@ -207,6 +224,19 @@ def features_for(ref, name):
     """Features in reference_data.mat that belong to the network of a shipped model."""
 
     return ref[FEATURES_KEY[MODELS[name]["network"]]]
+
+
+def alignet_weights():
+    """Path of the AligNet weights if they are available without a download, else None.
+
+    These are the file in DIMPRED_ALIGNET_WEIGHTS or the file that dimpred
+    downloaded before (~/.cache/dimpred). The tests never download the
+    weights (378 MB); the tests that need them are skipped without them.
+    """
+
+    fname = os.environ.get("DIMPRED_ALIGNET_WEIGHTS") or os.path.join(
+        os.path.expanduser("~"), ".cache", "dimpred", "alignet_siglip2_b.safetensors")
+    return fname if os.path.isfile(fname) else None
 
 
 def python_env():

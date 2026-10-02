@@ -24,7 +24,7 @@
 %   files = dimpred_find_images('my_images');
 %   features = dimpred_extract_features(files);
 %
-% Martin Hebart, 2026/09/30
+% Hebartlab, 2026/09/30
 %
 % See also DIMPRED_EXTRACT_FEATURES
 

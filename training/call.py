@@ -26,6 +26,13 @@ from fit import (
     train_model_with,
 )
 
+# History:
+# 2026/10/02: "fracridge" for the fractional ridge of the DimPred paper;
+#   "ridge" is now the ridge with the penalty chosen directly (fit.ridge_cv)
+# 2026/09/30: moved from dimpred/call.py to training/; imports from fit.py
+#   and determine_base_path here (DIMPRED_BASE_PATH)
+# Philipp Kaniuth's code of the DimPred paper otherwise
+
 
 def determine_base_path():
     """Return the folder that contains the dimpred/data/... tree.
@@ -58,7 +65,9 @@ def get_trained_model_for(model, module, n_dim, regularization):
         either 49 or 66.
     regularization : str
         Indication of the regularization paradigm that should be used when
-        selecting the pre-created statistical model.
+        selecting the pre-created statistical model. Can be 'ridge' (ridge
+        with the penalty chosen directly), 'fracridge' (the fractional ridge
+        of the DimPred paper) or 'elastic'.
 
     Returns
     -------
@@ -68,6 +77,10 @@ def get_trained_model_for(model, module, n_dim, regularization):
     """
     base_path = determine_base_path()
     random_state = 0
+    if regularization == "ridge":
+        # the models of the paper on OSF are named ..._ridge_... as well
+        print("'ridge' is the ridge with the penalty chosen directly since dimpred 1.1.0; "
+              "the DimPred paper used 'fracridge'.")
 
     try:
         X = load_data_from(
@@ -120,8 +133,11 @@ def get_predicted_spose_for(model, module, imagesets, n_dim, regularization):
         either 49 or 66.
     regularization : str
         Indication of the regularization paradigm that should be used when
-        selecting the pre-created statistical model. Can be either 'ridge' or
-        'elastic'.
+        selecting the pre-created statistical model. Can be 'ridge' (ridge
+        with the penalty chosen directly), 'fracridge' (the fractional ridge
+        of the DimPred paper) or 'elastic'. With 'ridge', a model of the
+        paper on OSF (model_49d_ridge_..., a fractional ridge) is used if it
+        is there, otherwise the new ridge is fitted.
     """
     base_path = determine_base_path()
 

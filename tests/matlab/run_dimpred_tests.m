@@ -22,12 +22,13 @@
 %     dimpred:folderNotFound     dimpred_find_images: the folder does not
 %                                exist or is a file
 %     dimpred:noImages           dimpred_find_images: no image files
-%     dimpred:fileNotFound       dimpred_extract_features: an image file does
-%                                not exist, or a folder was given (checked
-%                                before Python starts)
-%     dimpred:pythonFailed       dimpred_extract_features: Python cannot be
-%                                started or exits with an error (the message
-%                                includes what Python printed)
+%     dimpred:fileNotFound       dimpred_extract_features, dimpred_rise: an
+%                                image file does not exist, or a folder was
+%                                given (checked before Python starts)
+%     dimpred:pythonFailed       dimpred_extract_features, dimpred_rise:
+%                                Python cannot be started or exits with an
+%                                error (the message includes what Python
+%                                printed)
 %     dimpred:wrongFeatureCount  dimpred_predict: the number of feature
 %                                columns does not fit the model (also for
 %                                transposed features and for a column vector)
@@ -47,12 +48,17 @@
 %       --batch-size and --device; Python is cfg.python, else
 %       DIMPRED_PYTHON, else python3
 %     - dimpred_predict never transposes the features and returns double
+%     - dimpred_rise calls python -m dimpred <images> --rise with --n-masks,
+%       --model, --batch-size, --out (a .mat file) and, if given, --png and
+%       --device, and returns the fields relevance, dimension_maps,
+%       embedding, labels, files, view, model and settings (images first)
 %
 % Input:
 %   mode: 'all' (default) runs all tests
-%         'fast' leaves out test_dimpred_extract_features, which starts
-%         Python and loads the networks (a few minutes). The tests in
-%         test_dimpred_extract_features_errors need no network and stay.
+%         'fast' leaves out test_dimpred_extract_features and
+%         test_dimpred_rise, which start Python and load the networks (a
+%         few minutes). The tests in test_dimpred_extract_features_errors
+%         and test_dimpred_rise_errors need no network and stay.
 %
 % Output:
 %   results: matlab.unittest.TestResult of all tests (only returned if
@@ -63,11 +69,12 @@
 %   run_dimpred_tests('fast')  % without feature extraction
 %   setenv('DIMPRED_PYTHON', '/path/to/python'); run_dimpred_tests  % with extraction
 %
-% Martin Hebart, 2026/09/30
+% Hebartlab, 2026/09/30
 %
 % See also RUNTESTS, TEST_DIMPRED_PREDICT, TEST_DIMPRED_EXTRACT_FEATURES
 
 % History:
+% 2026/10/02: 'fast' also leaves out test_dimpred_rise
 % 2026/09/30: the fast error tests of the extraction are now in their own
 %   file, so that 'fast' keeps them; 'fast' gives an error if it finds no
 %   slow tests to leave out; list of the rules the tests expect
@@ -91,11 +98,16 @@ switch lower(mode)
     case 'all'
         % keep all
     case 'fast'
-        is_slow = startsWith({suite.Name}, 'test_dimpred_extract_features/');
-        if ~any(is_slow)
-            % otherwise a renamed file would silently make 'fast' run everything
-            error('dimpred:noSlowTests', ['Found no tests of test_dimpred_extract_features to leave out. ' ...
-                'If the file was renamed, update the name in run_dimpred_tests.']);
+        slow_files = {'test_dimpred_extract_features/', 'test_dimpred_rise/'};
+        is_slow = false(size(suite));
+        for i_file = 1:numel(slow_files)
+            in_file = startsWith({suite.Name}, slow_files{i_file});
+            if ~any(in_file)
+                % otherwise a renamed file would silently make 'fast' run everything
+                error('dimpred:noSlowTests', ['Found no tests of %s to leave out. If the file was renamed, ' ...
+                    'update the name in run_dimpred_tests.'], slow_files{i_file}(1:end-1));
+            end
+            is_slow = is_slow | in_file;
         end
         suite = suite(~is_slow);
     otherwise

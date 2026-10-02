@@ -26,7 +26,7 @@
 %             Inf give an error.
 %   model:    model name, path of a model file, or a model from
 %             dimpred_load_model (default: [], the default model
-%             vitb32_66d_elastic)
+%             alignet_siglip2b_66d_ridge)
 %
 % Output:
 %   embedding: predicted dimension values, double, n_images x n_dims (one
@@ -36,11 +36,12 @@
 %   features = dimpred_extract_features(dimpred_find_images('my_images'));
 %   embedding = dimpred_predict(features);
 %
-% Martin Hebart, 2026/09/30
+% Hebartlab, 2026/09/30
 %
 % See also DIMPRED_LOAD_MODEL, DIMPRED_EXTRACT_FEATURES, DIMPRED_SIMILARITY
 
 % History:
+% 2026/10/02: new default model alignet_siglip2b_66d_ridge (help text)
 % 2026/09/30: NaN and Inf give an error, as in Python
 % 2026/09/30: written for the first release of the package
 

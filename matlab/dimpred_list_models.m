@@ -15,8 +15,8 @@
 %
 % Output:
 %   names: cell column with the names of the models, sorted alphabetically,
-%          e.g. {'rn50x64_49d_ridge'; 'rn50x64_66d_elastic'; ...
-%                'rn50x64_66d_ridge'; 'vitb32_66d_elastic'}
+%          e.g. {'alignet_siglip2b_66d_ridge'; 'rn50x64_49d_ridge'; ...
+%                'rn50x64_66d_elastic'; 'rn50x64_66d_ridge'; 'vitb32_66d_elastic'}
 %
 % Example:
 %   names = dimpred_list_models;
@@ -25,11 +25,12 @@
 %       fprintf('%s: %s\n', names{i_model}, model.info.note)
 %   end
 %
-% Martin Hebart, 2026/09/30
+% Hebartlab, 2026/09/30
 %
 % See also DIMPRED_LOAD_MODEL
 
 % History:
+% 2026/10/02: new model alignet_siglip2b_66d_ridge in the help text
 % 2026/09/30: written for the first release of the package
 
 function names = dimpred_list_models

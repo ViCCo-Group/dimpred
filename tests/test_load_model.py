@@ -7,7 +7,7 @@ info), that a model can be given by name, by path or as an already loaded
 dict with the same result, and that wrong input gives a clear error. The
 numbers in the model files themselves are checked in test_model_files.py.
 
-Martin Hebart, 2026/09/30
+Hebartlab, 2026/09/30
 
 See also: test_predict.py, test_model_files.py
 """
@@ -20,9 +20,13 @@ import pytest
 import scipy.io
 
 import dimpred
-from helpers import DEFAULT_MODEL, MODEL_NAMES, MODELS, MODELS_DIR, load_mat
+from helpers import ALIGNET, DEFAULT_MODEL, MODEL_NAMES, MODELS, MODELS_DIR, load_mat
 
 # History:
+# 2026/10/02: no model file says it is the default (the notes went stale
+#   when the default changed)
+# 2026/10/02: the default model is alignet_siglip2b_66d_ridge; info of the
+#   AligNet model and of the regressions (ridge, fracridge, elastic)
 # 2026/09/30: a model file without one of its variables has to give an error;
 #   the comparison with Philipp's original training moved to test_model_files.py
 # 2026/09/30: written together with the tests, before the package code
@@ -69,8 +73,8 @@ def test_list_models_gives_the_files_in_the_models_folder():
     assert dimpred.list_models() == names
 
 
-def test_default_model_is_vitb32_66d_elastic():
-    assert dimpred.DEFAULT_MODEL == "vitb32_66d_elastic"
+def test_default_model_is_alignet_siglip2b_66d_ridge():
+    assert dimpred.DEFAULT_MODEL == "alignet_siglip2b_66d_ridge"
 
 
 def test_load_model_without_input_gives_the_default_model():
@@ -167,15 +171,42 @@ def test_info_number_fields_are_int_and_fit_the_arrays(name):
     assert numbers == expected, f"{name}: info gives {numbers}, expected {expected}"
 
 
+# Words in info["regression"] for each regression, and words it must not contain
+REGRESSION_TEXT = {"ridge": ("penalty chosen directly", "fractional"),
+                   "fracridge": ("fractional ridge", "penalty chosen directly"),
+                   "elastic": ("elastic net", "ridge")}
+
+
 @pytest.mark.parametrize("name", MODEL_NAMES)
 def test_info_describes_the_model(name):
     info = dimpred.load_model(name)["info"]
     assert info["name"] == name, f"info['name'] is {info['name']!r}, expected {name!r}"
     assert info["network"] == MODELS[name]["network"], f"{name}: info['network'] is {info['network']!r}"
-    assert info["pretrained"] == "openai", f"{name}: info['pretrained'] is {info['pretrained']!r}"
-    # "fractional ridge regression ..." or "elastic net ..."
-    assert MODELS[name]["regression"] in info["regression"].lower(), (
+    if MODELS[name]["network"] == ALIGNET:
+        assert info["pretrained"].startswith("alignet_siglip2_b.safetensors"), (
+            f"{name}: info['pretrained'] is {info['pretrained']!r}")
+    else:
+        assert info["pretrained"] == "openai", f"{name}: info['pretrained'] is {info['pretrained']!r}"
+    has, has_not = REGRESSION_TEXT[MODELS[name]["regression"]]
+    assert has in info["regression"] and has_not not in info["regression"], (
         f"{name}: info['regression'] = {info['regression']!r}")
+
+
+def test_no_model_file_says_it_is_the_default():
+    # The default is set in the code (DEFAULT_MODEL), and the model files
+    # stay the same when it changes, so a note in a file that says
+    # "default" would become wrong
+    says_default = [name for name in MODEL_NAMES if "default" in dimpred.load_model(name)["info"]["note"].lower()]
+    assert says_default == [], f"info['note'] says 'default' for {says_default}"
+
+
+def test_alignet_model_uses_pre_logits_of_the_whole_image():
+    # AligNet was trained on the whole image resized to 224 x 224, values 0
+    # to 1; its features are pre_logits (output of the attention pooling)
+    info = dimpred.load_model("alignet_siglip2b_66d_ridge")["info"]
+    assert info["layer"].startswith("pre_logits"), f"info['layer'] is {info['layer']!r}"
+    for part in ["224 x 224", "no crop", "0 to 1"]:
+        assert part in info["preprocessing"], f"info['preprocessing'] = {info['preprocessing']!r} should say {part!r}"
 
 
 def test_vit_model_uses_the_quickgelu_network():

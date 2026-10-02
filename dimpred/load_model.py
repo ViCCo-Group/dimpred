@@ -6,6 +6,7 @@ import scipy.io
 from .list_models import list_models
 
 # History:
+# 2026/10/02: new default model alignet_siglip2b_66d_ridge
 # 2026/09/30: written for the first release of the package
 
 VARIABLES = ["weights", "feature_mean", "feature_scale", "target_mean", "labels", "info"]
@@ -42,7 +43,7 @@ def load_model(model=None):
 
     Input:
         model: one of
-               None:  the default model (dimpred.DEFAULT_MODEL, "vitb32_66d_elastic")
+               None:  the default model (dimpred.DEFAULT_MODEL, "alignet_siglip2b_66d_ridge")
                name:  a model that comes with dimpred (see list_models)
                path:  the path of a model file (.mat)
                dict:  a model that was already loaded, returned unchanged
@@ -61,7 +62,7 @@ def load_model(model=None):
         model = dimpred.load_model("rn50x64_49d_ridge")
         print(model["info"]["network"], model["weights"].shape)  # RN50x64 (1024, 49)
 
-    Martin Hebart, 2026/09/30
+    Hebartlab, 2026/09/30
 
     See also: list_models, predict
     """
