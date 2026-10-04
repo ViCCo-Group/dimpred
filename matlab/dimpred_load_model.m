@@ -23,12 +23,19 @@
 %                  layer, preprocessing, embedding, regression,
 %                  training_images, source, note, created (text) and
 %                  n_features, n_dims (numbers)
+% A model with a local kernel (e.g. the default model) also has
+%   kernel_features      n_train x n_features, the features of the
+%                        training images, scaled to length 1
+%   kernel_coefficients  n_train x n_dims
+%   kernel_tau           width of the kernel (see dimpred_predict)
+% and the settings of the close-pair term of dimpred_similarity:
+%   close_pairs_weight, close_pairs_threshold
 % You can build your own model files in the same format and pass their
 % path.
 %
 % Input:
 %   model: one of
-%          [] or omitted: the default model, alignet_siglip2b_66d_ridge
+%          [] or omitted: the default model, alignet_siglip2b_66d_kernel
 %          name:   a model that comes with dimpred (see dimpred_list_models)
 %          file:   path of a model file (.mat), absolute or relative to the
 %                  current folder (the MATLAB path is not searched)
@@ -43,6 +50,10 @@
 %          labels         n_dims x 1 cell array of char
 %          info           struct, as in the file
 %          file           absolute path of the model file
+%          kernel_features, kernel_coefficients (double),
+%          kernel_tau, close_pairs_weight, close_pairs_threshold:
+%                         the kernel part and the close-pair settings,
+%                         [] if the model has none
 %
 % Example:
 %   model = dimpred_load_model('rn50x64_49d_ridge');
@@ -54,6 +65,8 @@
 % See also DIMPRED_LIST_MODELS, DIMPRED_PREDICT
 
 % History:
+% 2026/10/04: optional kernel part and close-pair settings; new default
+%   model alignet_siglip2b_66d_kernel
 % 2026/10/02: new default model alignet_siglip2b_66d_ridge
 % 2026/09/30: written for the first release of the package
 
@@ -61,7 +74,7 @@ function model = dimpred_load_model(model)
 
 % The model that is used when no model is given (DEFAULT_MODEL in Python).
 % The other functions get the default from here.
-default_model = 'alignet_siglip2b_66d_ridge';
+default_model = 'alignet_siglip2b_66d_kernel';
 
 % A model that was already loaded
 if exist('model', 'var') && isstruct(model)
@@ -102,6 +115,26 @@ model.labels = data.labels(:);
 model.info = data.info;
 model.file = fname;
 
+% The optional parts, each group all or none
+groups = {{'kernel_features', 'kernel_coefficients', 'kernel_tau'}, {'close_pairs_weight', 'close_pairs_threshold'}};
+for g = 1:numel(groups)
+    present = isfield(data, groups{g});
+    for v = find(present)
+        present(v) = ~isempty(data.(groups{g}{v})); % an empty variable means: not there
+    end
+    if any(present) && ~all(present)
+        error('dimpred:inconsistentModel', 'The model file %s has %s but not %s. These variables go together.', ...
+            fname, strjoin(groups{g}(present), ', '), strjoin(groups{g}(~present), ', '))
+    end
+    for v = groups{g}
+        if isfield(data, v{1}) && ~isempty(data.(v{1}))
+            model.(v{1}) = double(data.(v{1}));
+        else
+            model.(v{1}) = [];
+        end
+    end
+end
+
 % Check that the sizes fit together
 [n_features, n_dims] = size(model.weights);
 problems = {};
@@ -123,6 +156,18 @@ if isfield(model.info, 'n_features') && ~isequal(double(model.info.n_features), 
 end
 if isfield(model.info, 'n_dims') && ~isequal(double(model.info.n_dims), n_dims)
     problems{end+1} = sprintf('info.n_dims is %s', num2str(model.info.n_dims));
+end
+if ~isempty(model.kernel_features)
+    if size(model.kernel_features, 2) ~= n_features
+        problems{end+1} = sprintf('kernel_features has %i columns', size(model.kernel_features, 2));
+    end
+    if ~isequal(size(model.kernel_coefficients), [size(model.kernel_features, 1), n_dims])
+        problems{end+1} = sprintf('kernel_coefficients is %i x %i (needed: %i training images x %i)', ...
+            size(model.kernel_coefficients, 1), size(model.kernel_coefficients, 2), size(model.kernel_features, 1), n_dims);
+    end
+    if ~(isscalar(model.kernel_tau) && model.kernel_tau > 0)
+        problems{end+1} = 'kernel_tau has to be a number > 0';
+    end
 end
 if ~isempty(problems)
     error('dimpred:inconsistentModel', 'The model file %s is inconsistent: weights are %i x %i (n_features x n_dims), but %s.', ...

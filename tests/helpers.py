@@ -21,6 +21,8 @@ import numpy as np
 import scipy.io
 
 # History:
+# 2026/10/04: new default model alignet_siglip2b_66d_kernel (ridge + local
+#   kernel); KERNEL_MODEL_NAMES and LINEAR_MODEL_NAMES
 # 2026/10/02: fixture with the ridge fits of the DimPred benchmark
 # 2026/10/02: new default model alignet_siglip2b_66d_ridge (AligNet
 #   SigLIP2-B features in the fixtures, tolerance of the AligNet features,
@@ -43,13 +45,17 @@ MATLAB_TESTS = os.path.join(TESTS, "matlab")
 TRAINING = os.path.join(REPO, "training")
 TRAINING_DATA = os.path.join(TRAINING, "data")
 
-DEFAULT_MODEL = "alignet_siglip2b_66d_ridge"
+DEFAULT_MODEL = "alignet_siglip2b_66d_kernel"
 ALIGNET = "AligNet SigLIP2-B"  # the network of the default model (not an open_clip network)
 
 # The shipped models (table in README.md and docs/models.md). regression is
-# "ridge" (ridge with the penalty chosen directly), "fracridge" (fractional
-# ridge of the DimPred paper) or "elastic" (elastic net).
+# "ridge" (ridge with the penalty chosen directly), "ridge + kernel" (the
+# ridge plus a local kernel, with the kernel part and the close-pair
+# settings in the file), "fracridge" (fractional ridge of the DimPred paper)
+# or "elastic" (elastic net).
 MODELS = {
+    "alignet_siglip2b_66d_kernel": dict(network=ALIGNET, n_features=768, n_dims=66, regression="ridge + kernel",
+                                        kernel=True, n_train=1854),
     "alignet_siglip2b_66d_ridge": dict(network=ALIGNET, n_features=768, n_dims=66, regression="ridge"),
     "rn50x64_49d_ridge": dict(network="RN50x64", n_features=1024, n_dims=49, regression="fracridge"),
     "rn50x64_66d_elastic": dict(network="RN50x64", n_features=1024, n_dims=66, regression="elastic"),
@@ -57,6 +63,8 @@ MODELS = {
     "vitb32_66d_elastic": dict(network="ViT-B-32-quickgelu", n_features=512, n_dims=66, regression="elastic"),
 }
 MODEL_NAMES = sorted(MODELS)
+KERNEL_MODEL_NAMES = [name for name in MODEL_NAMES if MODELS[name].get("kernel")]
+LINEAR_MODEL_NAMES = [name for name in MODEL_NAMES if not MODELS[name].get("kernel")]
 
 # Variables in reference_data.mat that hold the features of each network
 FEATURES_KEY = {"RN50x64": "features_rn50x64", "ViT-B-32-quickgelu": "features_vitb32", ALIGNET: "features_alignet"}

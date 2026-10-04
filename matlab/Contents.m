@@ -20,14 +20,15 @@
 %   dimpred_extract_features  network features of images (runs Python with torch and open_clip)
 %   dimpred_predict           predicted dimension values from network features
 %   dimpred_similarity        predicted similarity between images from their predicted dimensions
+%                             (and, for the close pairs, their features)
 %   dimpred_rise              heatmaps: which parts of an image drive its predicted dimensions (runs Python)
 %
 % Example:
 %   setenv('DIMPRED_PYTHON', '/path/to/python')  % Python for dimpred_extract_features and dimpred_rise
 %   files = dimpred_find_images('my_images');
-%   features = dimpred_extract_features(files);  % default model: alignet_siglip2b_66d_ridge
+%   features = dimpred_extract_features(files);  % default model: alignet_siglip2b_66d_kernel
 %   embedding = dimpred_predict(features);       % n_images x 66
-%   S = dimpred_similarity(embedding);           % n_images x n_images
+%   S = dimpred_similarity(embedding, [], features);  % n_images x n_images, with the close pairs
 %
 % Reference: Kaniuth, P., Mahner, F. P., Perkuhn, J., & Hebart, M. N.
 % (2025). A high-throughput approach for the efficient prediction of
@@ -39,5 +40,7 @@
 % Hebartlab, 2026/09/30
 
 % History:
+% 2026/10/04: new default model alignet_siglip2b_66d_kernel; dimpred_similarity
+%   with the close pairs (features)
 % 2026/10/02: dimpred_rise, new default model alignet_siglip2b_66d_ridge
 % 2026/09/30: written for the first release of the package

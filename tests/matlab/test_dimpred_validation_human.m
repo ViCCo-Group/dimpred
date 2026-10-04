@@ -27,6 +27,7 @@
 % See also DIMPRED_PREDICT, DIMPRED_SIMILARITY, RUN_DIMPRED_TESTS
 
 % History:
+% 2026/10/04: new model alignet_siglip2b_66d_kernel
 % 2026/10/02: new model alignet_siglip2b_66d_ridge
 % 2026/09/30: written before the code (test-driven development)
 
@@ -58,6 +59,10 @@ end
 
 
 %% One test per model
+
+function test_human_similarity_alignet_siglip2b_66d_kernel(testCase)
+verify_human_r(testCase, 'alignet_siglip2b_66d_kernel');
+end
 
 function test_human_similarity_alignet_siglip2b_66d_ridge(testCase)
 verify_human_r(testCase, 'alignet_siglip2b_66d_ridge');

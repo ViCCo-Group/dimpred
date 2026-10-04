@@ -20,9 +20,11 @@ import pytest
 import scipy.io
 
 import dimpred
-from helpers import ALIGNET, DEFAULT_MODEL, MODEL_NAMES, MODELS, MODELS_DIR, load_mat
+from helpers import ALIGNET, DEFAULT_MODEL, KERNEL_MODEL_NAMES, LINEAR_MODEL_NAMES, MODEL_NAMES, MODELS, MODELS_DIR, load_mat
 
 # History:
+# 2026/10/04: the default model is alignet_siglip2b_66d_kernel; its kernel part and
+#   close-pair settings
 # 2026/10/02: no model file says it is the default (the notes went stale
 #   when the default changed)
 # 2026/10/02: the default model is alignet_siglip2b_66d_ridge; info of the
@@ -73,8 +75,8 @@ def test_list_models_gives_the_files_in_the_models_folder():
     assert dimpred.list_models() == names
 
 
-def test_default_model_is_alignet_siglip2b_66d_ridge():
-    assert dimpred.DEFAULT_MODEL == "alignet_siglip2b_66d_ridge"
+def test_default_model_is_alignet_siglip2b_66d_kernel():
+    assert dimpred.DEFAULT_MODEL == "alignet_siglip2b_66d_kernel"
 
 
 def test_load_model_without_input_gives_the_default_model():
@@ -83,6 +85,67 @@ def test_load_model_without_input_gives_the_default_model():
 
 def test_load_model_with_none_gives_the_default_model():
     assert dimpred.load_model(None)["info"]["name"] == DEFAULT_MODEL
+
+
+# --- the kernel part and the close-pair settings
+
+KERNEL_KEYS = ["kernel_features", "kernel_coefficients", "kernel_tau"]
+CLOSE_PAIRS_KEYS = ["close_pairs_weight", "close_pairs_threshold"]
+
+
+@pytest.mark.parametrize("name", KERNEL_MODEL_NAMES)
+def test_kernel_model_has_its_kernel_part_and_close_pair_settings(name):
+    model = dimpred.load_model(name)
+    n_train, n_features, n_dims = MODELS[name]["n_train"], MODELS[name]["n_features"], MODELS[name]["n_dims"]
+    assert model["kernel_features"].shape == (n_train, n_features), f"kernel_features {model['kernel_features'].shape}"
+    assert model["kernel_coefficients"].shape == (n_train, n_dims), (
+        f"kernel_coefficients {model['kernel_coefficients'].shape}")
+    for key in ["kernel_features", "kernel_coefficients"]:
+        assert model[key].dtype == np.float64 and np.all(np.isfinite(model[key])), f"{key} is not finite float64"
+    assert isinstance(model["kernel_tau"], float) and model["kernel_tau"] > 0, f"kernel_tau {model['kernel_tau']}"
+    assert isinstance(model["close_pairs_weight"], float) and model["close_pairs_weight"] > 0
+    assert -1 < model["close_pairs_threshold"] < 1, f"close_pairs_threshold {model['close_pairs_threshold']}"
+
+
+@pytest.mark.parametrize("name", LINEAR_MODEL_NAMES)
+def test_linear_model_has_no_kernel_part_and_no_close_pair_settings(name):
+    model = dimpred.load_model(name)
+    for key in KERNEL_KEYS + CLOSE_PAIRS_KEYS:
+        assert model[key] is None, f"{name}: {key} should be None, it is {model[key]!r}"
+
+
+def kernel_file(fname, leave_out=(), replace=None):
+    """The default model file with some of its variables left out or replaced."""
+
+    data = {k: v for k, v in scipy.io.loadmat(dimpred.load_model(DEFAULT_MODEL)["file"]).items() if not k.startswith("__")}
+    data.update(replace or {})
+    scipy.io.savemat(fname, {k: v for k, v in data.items() if k not in leave_out})
+    return fname
+
+
+@pytest.mark.parametrize("leave_out", [["kernel_tau"], ["kernel_features", "kernel_coefficients"], ["close_pairs_weight"]])
+def test_incomplete_kernel_or_close_pair_variables_give_error(tmp_path, leave_out):
+    fname = kernel_file(str(tmp_path / "model.mat"), leave_out=leave_out)
+    with pytest.raises(ValueError, match="go together"):
+        dimpred.load_model(fname)
+
+
+def test_empty_kernel_and_close_pair_variables_mean_none(tmp_path):
+    # e.g. a model struct from MATLAB, where these fields are [] for a model without them
+    fname = kernel_file(str(tmp_path / "model.mat"), replace={k: np.zeros((0, 0)) for k in KERNEL_KEYS + CLOSE_PAIRS_KEYS})
+    model = dimpred.load_model(fname)
+    assert all(model[k] is None for k in KERNEL_KEYS + CLOSE_PAIRS_KEYS)
+
+
+@pytest.mark.parametrize("replace, message", [
+    (dict(kernel_coefficients=np.ones((1854, 65))), "kernel_coefficients is 1854 x 65"),
+    (dict(kernel_coefficients=np.ones((1853, 66))), "kernel_coefficients is 1853 x 66"),
+    (dict(kernel_features=np.ones((1854, 767), dtype=np.float32)), "kernel_features has 767 columns"),
+    (dict(kernel_tau=0.0), "kernel_tau is 0.0")])
+def test_inconsistent_kernel_part_gives_error(tmp_path, replace, message):
+    fname = kernel_file(str(tmp_path / "model.mat"), replace=replace)
+    with pytest.raises(ValueError, match=message):
+        dimpred.load_model(fname)
 
 
 # --- content of each shipped model
@@ -173,6 +236,7 @@ def test_info_number_fields_are_int_and_fit_the_arrays(name):
 
 # Words in info["regression"] for each regression, and words it must not contain
 REGRESSION_TEXT = {"ridge": ("penalty chosen directly", "fractional"),
+                   "ridge + kernel": ("local kernel", "fractional"),
                    "fracridge": ("fractional ridge", "penalty chosen directly"),
                    "elastic": ("elastic net", "ridge")}
 

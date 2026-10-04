@@ -32,10 +32,11 @@ import os
 import numpy as np
 import pytest
 
-from helpers import (BENCHMARK_RIDGE_FILE, MODEL_NAMES, MODELS, MODELS_DIR, TOL_STANDARDIZER, TRAINING_DATA,
+from helpers import (BENCHMARK_RIDGE_FILE, KERNEL_MODEL_NAMES, MODEL_NAMES, MODELS, MODELS_DIR, TOL_STANDARDIZER, TRAINING_DATA,
                      assert_close, features_for, load_mat, read_lines)
 
 # History:
+# 2026/10/04: the kernel model: its training features, settings and close-pair threshold
 # 2026/10/02: the ridge models are compared with the fits of the DimPred
 #   benchmark (before, only that rn50x64_66d_ridge is not the fractional
 #   ridge anymore, which a wrong refit would also pass)
@@ -133,3 +134,36 @@ def test_ridge_weights_are_those_of_the_benchmark_fit(name):
                  f"{name}: norm of the weights of each dimension vs the benchmark fit")
     assert_close(weights.sum(axis=0), benchmark[f"sum_{name}"], tolerance,
                  f"{name}: sum of the weights of each dimension vs the benchmark fit")
+
+
+# --- the kernel model
+
+@pytest.mark.parametrize("name", KERNEL_MODEL_NAMES)
+def test_kernel_model_has_the_settings_chosen_on_things(name):
+    # tau and the close-pair weight were chosen on THINGS out of fold (training/build_models.py, KERNEL and
+    # CLOSE_PAIRS); the other settings were tested there, so a different value means a different model
+    model = read_model_file(name)
+    assert float(model["kernel_tau"]) == 0.5, f"{name}: kernel_tau is {model['kernel_tau']}"
+    assert float(model["close_pairs_weight"]) == 8.0, f"{name}: close_pairs_weight is {model['close_pairs_weight']}"
+
+
+@pytest.mark.parametrize("name", KERNEL_MODEL_NAMES)
+def test_close_pairs_threshold_is_the_90th_percentile_of_the_training_cosines(name):
+    model = read_model_file(name)
+    train = np.asarray(model["kernel_features"], dtype=float)
+    cosines = train @ train.T
+    expected = np.quantile(cosines[~np.eye(len(train), dtype=bool)], 0.9)
+    assert abs(float(model["close_pairs_threshold"]) - expected) < 1e-5, (
+        f"{name}: close_pairs_threshold {float(model['close_pairs_threshold'])}, 90th percentile {expected}")
+
+
+@pytest.mark.parametrize("name", KERNEL_MODEL_NAMES)
+def test_kernel_model_has_the_training_statistics_of_the_ridge_model(name):
+    # the same network and training images as alignet_siglip2b_66d_ridge, so the same feature mean and std
+    # (within the precision of the cached features) and the same dimension means
+    kernel, ridge = read_model_file(name), read_model_file("alignet_siglip2b_66d_ridge")
+    scale = np.asarray(ridge["feature_scale"], dtype=float)
+    for key in ["feature_mean", "feature_scale"]:
+        diff = np.abs(np.asarray(kernel[key], dtype=float) - np.asarray(ridge[key], dtype=float)) / scale
+        assert diff.max() < 1e-5, f"{name}: {key} differs from alignet_siglip2b_66d_ridge by {diff.max():.2g} std"
+    assert_close(np.asarray(kernel["target_mean"]), np.asarray(ridge["target_mean"]), 1e-12, "target_mean")

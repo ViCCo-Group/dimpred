@@ -28,6 +28,7 @@ import dimpred
 from helpers import assert_close, spose_similarity_by_definition
 
 # History:
+# 2026/10/04: tests of the close-pair term (features, model)
 # 2026/09/30: nan and inf give an error, as in MATLAB
 # 2026/09/30: test of large dot products within a small range, for the
 #   version of similarity.py that computes exp once
@@ -267,3 +268,91 @@ def test_similarity_is_much_faster_than_plain_python_loops():
     assert 3 * fastest < loops, (
         f"similarity of 200 objects took {fastest:.2f} s, plain Python loops {loops:.2f} s. It should be at "
         f"least 3 times faster than the loops.")
+
+
+# --- the close-pair term (features)
+
+def spose_from_dots(dots):
+    """Slow reference: the SPoSE similarity written out for a matrix of dot products."""
+
+    n = len(dots)
+    S = np.ones((n, n))
+    for i in range(n):
+        for j in range(n):
+            if i != j:
+                p = [np.exp(dots[i, j]) / (np.exp(dots[i, j]) + np.exp(dots[i, k]) + np.exp(dots[j, k]))
+                     for k in range(n) if k not in (i, j)]
+                S[i, j] = np.mean(p)
+    return S
+
+
+def features_with_close_pairs(n, n_features, seed):
+    """Random features where objects 0 and 1, and 2 and 3, are very close (cosine about 0.99)."""
+
+    rng = np.random.default_rng(seed)
+    features = rng.standard_normal((n, n_features))
+    features[1] = features[0] + 0.1 * rng.standard_normal(n_features)
+    features[3] = features[2] + 0.1 * rng.standard_normal(n_features)
+    return features
+
+
+def close_pair_term(features, weight, threshold):
+    unit = features / np.linalg.norm(features, axis=1, keepdims=True)
+    return weight * np.maximum(0, unit @ unit.T - threshold)
+
+
+def test_close_pairs_add_the_network_similarity_of_the_close_pairs():
+    model = dimpred.load_model()  # the default model has the close-pair settings
+    embedding = random_embedding(6, 66, 11, scale=0.5)
+    features = features_with_close_pairs(6, model["weights"].shape[0], 12)
+    D = embedding @ embedding.T + close_pair_term(features, model["close_pairs_weight"], model["close_pairs_threshold"])
+    assert_close(dimpred.similarity(embedding, "dot", features=features), D, 1e-12, "dot with the close pairs")
+    assert_close(dimpred.similarity(embedding, features=features), spose_from_dots(D), 1e-12, "spose with the close pairs")
+    changed = ~np.isclose(D, embedding @ embedding.T)
+    np.fill_diagonal(changed, False)
+    assert changed[0, 1] and changed[2, 3] and changed.sum() == 4, "only the two close pairs should change"
+
+
+def test_features_without_close_pairs_change_nothing():
+    # random features in 768 dimensions have cosines near 0, far below the threshold
+    embedding = random_embedding(8, 66, 13)
+    features = np.random.default_rng(14).standard_normal((8, 768))
+    S = dimpred.similarity(embedding, features=features)
+    off = ~np.eye(8, dtype=bool)
+    assert_close(S[off], dimpred.similarity(embedding)[off], 1e-12, "similarity with features without close pairs")
+
+
+def test_close_pairs_use_the_settings_of_the_given_model():
+    model = dict(dimpred.load_model(), close_pairs_weight=3.0, close_pairs_threshold=0.2)
+    embedding = random_embedding(5, 66, 15)
+    features = features_with_close_pairs(5, 768, 16)
+    expected = embedding @ embedding.T + close_pair_term(features, 3.0, 0.2)
+    assert_close(dimpred.similarity(embedding, "dot", features=features, model=model), expected, 1e-12,
+                 "dot with the close-pair settings of the given model")
+
+
+def test_input_is_not_changed_with_features():
+    embedding = random_embedding(5, 66, 17)
+    features = features_with_close_pairs(5, 768, 18)
+    copies = embedding.copy(), features.copy()
+    dimpred.similarity(embedding, features=features)
+    assert np.array_equal(embedding, copies[0]) and np.array_equal(features, copies[1]), "input changed"
+
+
+def test_model_without_close_pair_settings_gives_error():
+    with pytest.raises(ValueError, match="no close-pair settings"):
+        dimpred.similarity(random_embedding(4, 66, 19), features=np.ones((4, 1024)), model="rn50x64_66d_ridge")
+
+
+@pytest.mark.parametrize("shape, message", [((4, 768), "one row per object"), ((5, 512), "needs 768 features")])
+def test_features_of_the_wrong_shape_give_error(shape, message):
+    with pytest.raises(ValueError, match=message):
+        dimpred.similarity(random_embedding(5, 66, 20), features=np.ones(shape))
+
+
+@pytest.mark.parametrize("value", [0.0, np.nan])
+def test_features_with_zero_rows_or_nan_give_error(value):
+    features = features_with_close_pairs(5, 768, 21)
+    features[2] = value
+    with pytest.raises(ValueError, match="cosines are not defined"):
+        dimpred.similarity(random_embedding(5, 66, 22), features=features)

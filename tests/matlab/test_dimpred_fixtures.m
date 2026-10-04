@@ -30,6 +30,7 @@
 % See also RUN_DIMPRED_TESTS
 
 % History:
+% 2026/10/04: the model alignet_siglip2b_66d_kernel
 % 2026/10/02: %#ok for iscellstr, which checks for cell arrays on purpose
 % 2026/10/02: AligNet SigLIP2-B features and the model alignet_siglip2b_66d_ridge
 % 2026/09/30: after review: text variables are cells of text, published
@@ -78,6 +79,7 @@ expected = {
     'expected_rn50x64_66d_ridge',      [168 66]
     'expected_vitb32_66d_elastic',     [168 66]
     'expected_alignet_siglip2b_66d_ridge', [168 66]
+    'expected_alignet_siglip2b_66d_kernel', [168 66]
     'human_similarity_48nonref',       [48 48]
     'human_r_48nonref',                [1 1]
     'cc0_files',                       [3 1]
@@ -99,7 +101,8 @@ function test_numbers_are_finite(testCase)
 ref = testCase.TestData.ref;
 names = {'features_rn50x64', 'features_vitb32', 'features_alignet', 'published_rn50x64_49d_ridge', ...
     'expected_rn50x64_49d_ridge', 'expected_rn50x64_66d_elastic', 'expected_rn50x64_66d_ridge', ...
-    'expected_vitb32_66d_elastic', 'expected_alignet_siglip2b_66d_ridge', 'cc0_features_rn50x64', ...
+    'expected_vitb32_66d_elastic', 'expected_alignet_siglip2b_66d_ridge', ...
+    'expected_alignet_siglip2b_66d_kernel', 'cc0_features_rn50x64', ...
     'cc0_features_vitb32', 'cc0_features_alignet', 'cc0_published_rn50x64_49d_ridge'};
 for i_var = 1:numel(names)
     values = ref.(names{i_var});
@@ -173,7 +176,8 @@ function test_predictions_are_not_mostly_zero(testCase)
 % without target_mean gives about 70% zeros, so we require less than 40%.
 ref = testCase.TestData.ref;
 names = {'published_rn50x64_49d_ridge', 'expected_rn50x64_49d_ridge', 'expected_rn50x64_66d_elastic', ...
-    'expected_rn50x64_66d_ridge', 'expected_vitb32_66d_elastic', 'expected_alignet_siglip2b_66d_ridge'};
+    'expected_rn50x64_66d_ridge', 'expected_vitb32_66d_elastic', 'expected_alignet_siglip2b_66d_ridge', ...
+    'expected_alignet_siglip2b_66d_kernel'};
 for i_var = 1:numel(names)
     values = ref.(names{i_var});
     zero_fraction = mean(values(:) == 0);
@@ -191,8 +195,8 @@ function test_human_r_of_all_models(testCase)
 % themselves: without target_mean, r drops to 0.76-0.78, without the
 % scaling of the features to 0.70-0.77.
 human_r = testCase.TestData.ref.human_r_48nonref;
-names = {'alignet_siglip2b_66d_ridge'; 'rn50x64_49d_ridge'; 'rn50x64_66d_elastic'; 'rn50x64_66d_ridge'; ...
-    'vitb32_66d_elastic'};
+names = {'alignet_siglip2b_66d_kernel'; 'alignet_siglip2b_66d_ridge'; 'rn50x64_49d_ridge'; ...
+    'rn50x64_66d_elastic'; 'rn50x64_66d_ridge'; 'vitb32_66d_elastic'};
 for i_model = 1:numel(names)
     name = names{i_model};
     testCase.verifyTrue(isfield(human_r, name), sprintf('human_r_48nonref has no value for model %s', name));

@@ -28,7 +28,7 @@ still give stable maps. For heatmaps we recommend --model rn50x64_66d_ridge
 
 Options:
     --model:          name of a shipped model or path of a model file
-                      (default: alignet_siglip2b_66d_ridge)
+                      (default: alignet_siglip2b_66d_kernel)
     --out:            output file, .csv (default: dimpred_predictions.csv) or
                       .mat; with --rise .mat (default: dimpred_heatmaps.mat)
                       or .npz
@@ -77,6 +77,7 @@ import scipy.io
 import dimpred
 
 # History:
+# 2026/10/04: new default model alignet_siglip2b_66d_kernel
 # 2026/10/02: an empty MKL_NUM_THREADS (as from MATLAB) is removed before torch is imported
 # 2026/10/02: --rise, --n-masks and --png for the RISE heatmaps (dimpred.rise)
 # 2026/10/02: new default model alignet_siglip2b_66d_ridge

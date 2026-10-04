@@ -24,6 +24,8 @@
 % See also DIMPRED_LOAD_MODEL, DIMPRED_LIST_MODELS, RUN_DIMPRED_TESTS
 
 % History:
+% 2026/10/04: new default model alignet_siglip2b_66d_kernel; its kernel part and
+%   close-pair settings
 % 2026/10/02: new default model alignet_siglip2b_66d_ridge (AligNet SigLIP2-B)
 % 2026/09/30: after review: numbers compared with the file, models found
 %   from any current folder, relative path to a model file, NaN and Inf in
@@ -56,16 +58,16 @@ end
 function test_list_models_gives_shipped_models(testCase)
 names = dimpred_list_models;
 testCase.verifyEqual(names, shipped_models(), ...
-    'dimpred_list_models should return the names of the 5 shipped models as a sorted cell column');
+    'dimpred_list_models should return the names of the 6 shipped models as a sorted cell column');
 end
 
-function test_default_model_is_alignet_siglip2b_66d_ridge(testCase)
+function test_default_model_is_alignet_siglip2b_66d_kernel(testCase)
 model = dimpred_load_model;
-testCase.verifyEqual(model.info.name, 'alignet_siglip2b_66d_ridge', ...
-    'Without input, dimpred_load_model should load alignet_siglip2b_66d_ridge');
+testCase.verifyEqual(model.info.name, 'alignet_siglip2b_66d_kernel', ...
+    'Without input, dimpred_load_model should load alignet_siglip2b_66d_kernel');
 model = dimpred_load_model([]);
-testCase.verifyEqual(model.info.name, 'alignet_siglip2b_66d_ridge', ...
-    'dimpred_load_model([]) should load alignet_siglip2b_66d_ridge');
+testCase.verifyEqual(model.info.name, 'alignet_siglip2b_66d_kernel', ...
+    'dimpred_load_model([]) should load alignet_siglip2b_66d_kernel');
 end
 
 
@@ -129,6 +131,7 @@ function test_models_use_their_network(testCase)
 % SigLIP2-B is run by dimpred/alignet.py with its own weights.
 %   name                          network               pretrained                       n_features  n_dims
 expected = {
+    'alignet_siglip2b_66d_kernel', 'AligNet SigLIP2-B', 'alignet_siglip2_b.safetensors',  768,       66
     'alignet_siglip2b_66d_ridge', 'AligNet SigLIP2-B',  'alignet_siglip2_b.safetensors',  768,       66
     'rn50x64_49d_ridge',          'RN50x64',            'openai',                        1024,       49
     'rn50x64_66d_elastic',        'RN50x64',            'openai',                        1024,       66
@@ -342,13 +345,48 @@ end
 
 %% Helpers
 
+function test_kernel_model_has_its_kernel_part_and_close_pair_settings(testCase)
+model = dimpred_load_model('alignet_siglip2b_66d_kernel');
+testCase.verifySize(model.kernel_features, [1854 768], 'kernel_features should be 1854 x 768');
+testCase.verifySize(model.kernel_coefficients, [1854 66], 'kernel_coefficients should be 1854 x 66');
+testCase.verifyClass(model.kernel_features, 'double', 'kernel_features should be double after loading');
+testCase.verifyEqual(model.kernel_tau, 0.5, 'kernel_tau should be 0.5');
+testCase.verifyEqual(model.close_pairs_weight, 8, 'close_pairs_weight should be 8');
+testCase.verifyGreaterThan(model.close_pairs_threshold, 0, 'close_pairs_threshold should be > 0');
+testCase.verifyLessThan(model.close_pairs_threshold, 1, 'close_pairs_threshold should be < 1');
+norms = sqrt(sum(model.kernel_features .^ 2, 2));
+testCase.verifyLessThan(max(abs(norms - 1)), 1e-6, 'kernel_features should have length 1');
+end
+
+function test_linear_models_have_empty_kernel_fields(testCase)
+names = setdiff(shipped_models(), {'alignet_siglip2b_66d_kernel'});
+fields = {'kernel_features', 'kernel_coefficients', 'kernel_tau', 'close_pairs_weight', 'close_pairs_threshold'};
+for i_model = 1:numel(names)
+    model = dimpred_load_model(names{i_model});
+    for i_field = 1:numel(fields)
+        testCase.verifyTrue(isfield(model, fields{i_field}) && isempty(model.(fields{i_field})), ...
+            sprintf('Model %s: field %s should exist and be empty', names{i_model}, fields{i_field}));
+    end
+end
+end
+
+function test_incomplete_kernel_variables_give_error(testCase)
+data = load(dimpred_load_model('alignet_siglip2b_66d_kernel').file);
+data = rmfield(data, 'kernel_tau');
+fname = [tempname '.mat'];
+cleanup = onCleanup(@() delete(fname));
+save(fname, '-struct', 'data');
+testCase.verifyError(@() dimpred_load_model(fname), 'dimpred:inconsistentModel', ...
+    'A model file with kernel_features but without kernel_tau should give an error');
+end
+
 function names = shipped_models()
 % Names of the shipped models, sorted alphabetically. The same list is in
 % test_dimpred_predict.m and test_dimpred_fixtures.m, so that each test
 % file can be read on its own. test_list_models_gives_shipped_models fails
 % when a model is added and the lists need updating.
-names = {'alignet_siglip2b_66d_ridge'; 'rn50x64_49d_ridge'; 'rn50x64_66d_elastic'; 'rn50x64_66d_ridge'; ...
-    'vitb32_66d_elastic'};
+names = {'alignet_siglip2b_66d_kernel'; 'alignet_siglip2b_66d_ridge'; 'rn50x64_49d_ridge'; ...
+    'rn50x64_66d_elastic'; 'rn50x64_66d_ridge'; 'vitb32_66d_elastic'};
 end
 
 function lines = read_lines(fname)

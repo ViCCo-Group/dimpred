@@ -26,6 +26,7 @@
 % See also DIMPRED_RISE, TEST_DIMPRED_RISE, RUN_DIMPRED_TESTS
 
 % History:
+% 2026/10/04: the default model is alignet_siglip2b_66d_kernel
 % 2026/10/02: after review: model structs, the limit of 162 images, the
 %   fake Python copies the model file
 % 2026/10/02: written before dimpred_rise.m (test-driven)
@@ -221,7 +222,7 @@ testCase.verifyFalse(any(strcmp(args, '--device')), ['Without cfg.device, Python
 [~, ~, extension] = fileparts(option_value(args, '--out'));
 testCase.verifyEqual(extension, '.mat', ['The output of Python should be a .mat file: ' all_args]);
 [~, model_name] = fileparts(option_value(args, '--model'));
-testCase.verifyEqual(model_name, 'alignet_siglip2b_66d_ridge', ['Without model, the default model should be used: ' all_args]);
+testCase.verifyEqual(model_name, 'alignet_siglip2b_66d_kernel', ['Without model, the default model should be used: ' all_args]);
 end
 
 function test_options_are_passed(testCase)

@@ -5,9 +5,13 @@ mental object representations (the 66 dimensions of Hebart et al., 2023, or
 the 49 dimensions of Hebart et al., 2020), and from these dimensions the
 perceived similarity between images. A deep neural network (by default the
 image encoder of AligNet SigLIP2-B, Muttenthaler et al., 2025) turns each
-image into a feature vector. One linear regression per dimension, trained on
-the 1854 THINGS reference images, maps the features to the dimension values.
-Heatmaps (RISE) show which parts of an image drive its predicted dimensions.
+image into a feature vector. One regression per dimension, trained on the
+1854 THINGS reference images, maps the features to the dimension values: a
+ridge regression plus a local kernel, i.e. a correction from the training
+images that are similar to the image in the network. For the similarity, the
+network's own similarity is added for pairs of images that are very close in
+the network (close pairs). Heatmaps (RISE) show which parts of an image drive
+its predicted dimensions.
 The method and its evaluation are described in
 
 Kaniuth, P., Mahner, F. P., Perkuhn, J., & Hebart, M. N. (2025). A high-throughput
@@ -20,7 +24,7 @@ the DimPred paper, and the tests.
 
 If you used an earlier version: the training code (`fit.py`, `call.py`) is in
 [training/](training/README.md), and version 1.0.0 is the tag `v1.0.0`. What
-changed in 1.1.0: [docs/changes.md](docs/changes.md).
+changed in 1.1.0 and 1.2.0: [docs/changes.md](docs/changes.md).
 
 Contents: [Installation](#installation) | [Quick start](#quick-start) |
 [Models](#models) | [More](#more) | [Citation](#citation) | [Credits](#credits) |
@@ -60,9 +64,12 @@ import dimpred
 files = dimpred.find_images("my_images")     # image files in this folder, sorted by name
 features = dimpred.extract_features(files)   # one row per image, in the order of files
 embedding = dimpred.predict(features)        # images x 66 dimensions (default model)
-S = dimpred.similarity(embedding)            # images x images, predicted similarity
+S = dimpred.similarity(embedding, features=features)   # images x images, predicted similarity
 labels = dimpred.load_model()["labels"]      # names of the 66 dimensions
 ```
+
+`similarity` with the features adds the close pairs; without them, it uses
+the dimensions alone (`dimpred.similarity(embedding)`, as in 1.1.0).
 
 With another model, the features have to come from the network of that model.
 `extract_features` takes the network from the model you give it:
@@ -100,7 +107,7 @@ addpath('/path/to/dimpred/matlab')
 files = dimpred_find_images('my_images');     % cell column of full paths, sorted by name
 features = dimpred_extract_features(files);   % runs Python, one row per image
 embedding = dimpred_predict(features);        % images x 66 dimensions (default model)
-S = dimpred_similarity(embedding);            % images x images, predicted similarity
+S = dimpred_similarity(embedding, [], features);  % images x images, predicted similarity (with the close pairs)
 model = dimpred_load_model;                   % default model, model.labels holds the dimension names
 ```
 
@@ -144,8 +151,11 @@ Which model to use:
   is in https://github.com/ViCCo-Group/dimpred_paper, its data and all 53
   models on OSF, https://osf.io/jtekq
   ([more](training/README.md#reproducing-the-dimpred-paper)).
-- For the best prediction of the dimensions: the default model,
-  `alignet_siglip2b_66d_ridge`.
+- For the best prediction of the dimensions and of similarity: the default
+  model, `alignet_siglip2b_66d_kernel` (ridge plus a local kernel; for
+  similarity, pass the features to `similarity`).
+  `alignet_siglip2b_66d_ridge` is the same network without the kernel (the
+  default of 1.1.0).
 - For heatmaps: `rn50x64_66d_ridge` (a convolutional network; of the 66d
   models, its maps were the closest to Figure 7 of the paper), or the default,
   which is much faster (6000 masks on the GPU of an Apple M1 Max: about 10 min
@@ -155,7 +165,8 @@ Which model to use:
 
 | name | network | features | dims | regression | use |
 |---|---|---|---|---|---|
-| `alignet_siglip2b_66d_ridge` | AligNet SigLIP2-B (`pre_logits`) | 768 | 66 | ridge | default, best prediction of the dimensions |
+| `alignet_siglip2b_66d_kernel` | AligNet SigLIP2-B (`pre_logits`) | 768 | 66 | ridge + local kernel | default, best prediction of the dimensions and of similarity |
+| `alignet_siglip2b_66d_ridge` | AligNet SigLIP2-B (`pre_logits`) | 768 | 66 | ridge | default of 1.1.0 |
 | `vitb32_66d_elastic` | OpenAI CLIP ViT-B/32 (`ViT-B-32-quickgelu`) | 512 | 66 | elastic net | rebuilt model of Contier et al. (2024) |
 | `rn50x64_49d_ridge` | OpenAI CLIP RN50x64 (`RN50x64`) | 1024 | 49 | fractional ridge | model of the DimPred paper |
 | `rn50x64_66d_ridge` | OpenAI CLIP RN50x64 | 1024 | 66 | ridge | heatmaps (convolutional network) |
@@ -174,6 +185,8 @@ sets never used for training and over the 8 of them without 48new and 48nonref:
 
 | model | per dimension | 10 test sets | 8 test sets |
 |---|---|---|---|
+| `alignet_siglip2b_66d_kernel` | 0.839 | 0.657 | 0.596 |
+| `alignet_siglip2b_66d_kernel`, similarity with the close pairs | | 0.738 | 0.699 |
 | `alignet_siglip2b_66d_ridge` | 0.810 | 0.634 | 0.572 |
 | `vitb32_66d_elastic` | - | 0.598 | 0.535 |
 | `rn50x64_49d_ridge` | 0.717 (49d) | 0.562 | 0.496 |
@@ -193,7 +206,7 @@ optimistic; to test predictions against THINGS odd-one-out data, use
 - [Command line](docs/details.md#command-line), [file formats](docs/details.md#file-formats), [MATLAB](docs/details.md#matlab)
 - [The models](docs/models.md), [which model was used where](docs/models.md#which-model-was-used-where)
 - [Training and reproducing the DimPred paper](training/README.md)
-- [Tests](docs/details.md#tests), [repository layout](docs/details.md#repository-layout), [changes in 1.1.0](docs/changes.md)
+- [Tests](docs/details.md#tests), [repository layout](docs/details.md#repository-layout), [changes in 1.1.0 and 1.2.0](docs/changes.md)
 
 ## Citation
 

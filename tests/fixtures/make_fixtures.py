@@ -4,6 +4,11 @@ Create the test fixtures in this folder (reference_data.mat, images/).
 Usage:
     python make_fixtures.py --export <folder> --osf <folder> --cc0 <folder> --vit <folder>
                             --alignet <folder> --alignet-cc0 <file.npy>
+    python make_fixtures.py --add-models NAME [NAME ...]
+
+The second form adds the expected predictions and the correlation with human
+similarity of new shipped models to the existing reference_data.mat, from
+the features in it (used for alignet_siglip2b_66d_kernel on 2026/10/04).
 
 The tests compare dimpred against numbers that do not come from dimpred
 itself, mostly Philipp Kaniuth's published results. This script collects
@@ -81,11 +86,13 @@ import argparse
 import glob
 import os
 import shutil
+import sys
 
 import numpy as np
 import scipy.io
 
 # History:
+# 2026/10/04: models with a local kernel; --add-models for alignet_siglip2b_66d_kernel
 # 2026/10/02: description of benchmark_ridge_fits.mat
 # 2026/10/02: AligNet SigLIP2-B features (TensorFlow) for the new default model
 # 2026/09/30: written to create the test fixtures
@@ -116,7 +123,30 @@ def lower_triangle_r(a, b):
 
 def predict(features, model):
     z = (features - model["feature_mean"]) / model["feature_scale"]
-    return np.maximum(z @ model["weights"] + model["target_mean"], 0)
+    embedding = z @ model["weights"] + model["target_mean"]
+    if "kernel_features" in model:  # ridge + local kernel: correction from the training images
+        unit = features / np.sqrt((features ** 2).sum(axis=1, keepdims=True))
+        train = np.asarray(model["kernel_features"], dtype=float)
+        embedding = embedding + np.exp((unit @ train.T - 1) / model["kernel_tau"]) @ model["kernel_coefficients"]
+    return np.maximum(embedding, 0)
+
+
+def add_models(names):
+    """Add the expected predictions and human correlations of new shipped models to reference_data.mat."""
+    fix = scipy.io.loadmat(os.path.join(HERE, "reference_data.mat"))
+    fix = {k: v for k, v in fix.items() if not k.startswith("__")}
+    features_of = {"RN50x64": fix["features_rn50x64"], "ViT-B-32-quickgelu": fix["features_vitb32"],
+                   "AligNet SigLIP2-B": fix["features_alignet"]}
+    human = fix["human_similarity_48nonref"]
+    human_r = {k: float(np.asarray(fix["human_r_48nonref"][k][0, 0]).item()) for k in fix["human_r_48nonref"].dtype.names}
+    for name in names:
+        model = scipy.io.loadmat(os.path.join(MODELS, name + ".mat"), simplify_cells=True)
+        fix["expected_" + name] = predict(features_of[model["info"]["network"]], model)
+        human_r[name] = lower_triangle_r(spose_similarity(fix["expected_" + name][:48]), human)
+        print(f"{name}: r with human similarity (48nonref) = {human_r[name]:.3f}")
+    fix["human_r_48nonref"] = human_r
+    scipy.io.savemat(os.path.join(HERE, "reference_data.mat"), fix, do_compression=True)
+    print("Updated reference_data.mat")
 
 
 def extract(files, network):
@@ -132,6 +162,11 @@ def extract(files, network):
 
 
 def main(argv=None):
+    if argv is None:
+        argv = sys.argv[1:]
+    if argv and argv[0] == "--add-models":
+        add_models(argv[1:])
+        return
     parser = argparse.ArgumentParser(description="Create the dimpred test fixtures.")
     parser.add_argument("--export", required=True)
     parser.add_argument("--osf", required=True)

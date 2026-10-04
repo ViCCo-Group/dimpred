@@ -1,5 +1,35 @@
 # Changes
 
+## 1.2.0
+
+- The default model is now `alignet_siglip2b_66d_kernel`: the same network
+  (AligNet SigLIP2-B) and the same ridge as `alignet_siglip2b_66d_ridge`,
+  plus a local kernel, a correction from the training images that are
+  similar to the image in the network, fit together with the ridge
+  ([details](details.md#how-the-predictions-are-computed)). It predicts every
+  one of the 66 dimensions better (mean r per dimension 0.839 instead of
+  0.810, the color dimensions too) and also does so for concept categories
+  left out of training. The model file is larger (6.6 MB), because it holds
+  the features of the 1854 training images. To get the numbers of 1.1.0, give
+  `alignet_siglip2b_66d_ridge`.
+- `similarity` (`dimpred_similarity`) takes the features of the images as an
+  optional input. With them, the network's own similarity is added for pairs
+  of images that are very close in the network (close pairs; weight and
+  threshold come from the model). This is the recommended way to predict
+  similarity: on the 8 independent test sets, r = 0.699 instead of 0.596 for
+  the dimensions alone and 0.572 for 1.1.0, above all within categories
+  ([details](details.md#similarity)). Without the features, `similarity`
+  works as in 1.1.0.
+- Model files can hold a kernel part (`kernel_features`,
+  `kernel_coefficients`, `kernel_tau`) and the close-pair settings
+  (`close_pairs_weight`, `close_pairs_threshold`). Models without them work
+  as before.
+- In MATLAB, a model struct given to `dimpred_extract_features` or
+  `dimpred_rise` reaches Python with its kernel part and close-pair settings.
+- Training: `training/fit.py` has `kernel_ridge_fit`, and
+  `training/build_models.py` builds the new model (regression
+  `"ridge + kernel"`).
+
 ## 1.1.0
 
 - The default model is now `alignet_siglip2b_66d_ridge` (network AligNet

@@ -18,6 +18,8 @@ from sklearn.multioutput import MultiOutputRegressor
 from sklearn.preprocessing import StandardScaler
 
 # History:
+# 2026/10/04: kernel_ridge_fit, the ridge regression plus a local kernel of
+#   the model alignet_siglip2b_66d_kernel
 # 2026/10/02: ridge_cv, a ridge regression that keeps the penalty chosen by
 #   cross-validation, is now "ridge"; the fractional ridge of the DimPred
 #   paper is now "fracridge"
@@ -257,6 +259,63 @@ def ridge_cv(X_train_z, y_train_c, lambda_grid, cv):
     U, s, Vt = np.linalg.svd(X_train_z, full_matrices=False)
     coef = Vt.T @ (s[:, None] / (s[:, None] ** 2 + alpha[None, :]) * (U.T @ y_train_c))
     return coef, best_lambda, alpha
+
+
+def kernel_ridge_fit(X_train_z, y_train_c, X_train, alpha, beta, tau):
+    """Ridge regression plus a local kernel, fit together (since 2026/10/04).
+
+    The model of each target d is y_d(x) = z(x) w_d + f_d(x): the ridge
+    regression on the z-scored features z, plus a correction f_d that is
+    smooth in the similarity space of the network. f_d is a Gaussian process
+    with the covariance beta * exp((cos(x, x') - 1) / tau), where cos is the
+    cosine of the features (not z-scored). The linear part keeps the penalty
+    alpha_d of ridge_cv. Both parts are fit together, in closed form. With
+    beta = 0 this is the ridge regression with the penalties alpha.
+
+    For a new image x, the prediction (before adding the mean of the target)
+    is
+        z(x) w_d + sum over training images r of exp((cos(x, r) - 1) / tau) * c_rd
+    so the ridge prediction plus a correction from the training images that
+    are similar to x in the network, weighted by how much the model misses
+    them. In the dual form, with K = exp((C - 1) / tau) for the cosines C of
+    the training images,
+        A_d = (Z Z' / alpha_d + beta K + I)^-1 y_d,   w_d = Z' A_d / alpha_d,   c_d = beta A_d.
+    One generalized eigendecomposition of (Z Z', beta K + I) gives A_d for
+    all penalties at once.
+
+    Parameters
+    ----------
+    X_train_z : ndarray
+        z-scored features of the training images, n x n_features.
+    y_train_c : ndarray
+        Centered targets, n x n_targets.
+    X_train : ndarray
+        The features of the training images (not z-scored), for the cosines.
+    alpha : array-like
+        Penalty of the linear part for each target (as returned by ridge_cv).
+    beta : float
+        Size of the kernel part (relative to the noise).
+    tau : float
+        Width of the kernel on the cosine scale: a training image at cosine
+        c to x counts with exp((c - 1) / tau).
+
+    Returns
+    -------
+    weights : ndarray
+        Weights of the linear part, n_features x n_targets.
+    coefficients : ndarray
+        Coefficients of the kernel part, n x n_targets (c above).
+    """
+    from scipy.linalg import eigh
+
+    alpha = np.asarray(alpha, dtype=float)
+    X_unit = X_train / np.linalg.norm(X_train, axis=1, keepdims=True)
+    K = np.exp((X_unit @ X_unit.T - 1) / tau)
+    # Z Z' + alpha (beta K + I) = V^-T (lam + alpha) V^-1, with V' (beta K + I) V = I and V' Z Z' V = diag(lam)
+    lam, V = eigh(X_train_z @ X_train_z.T, beta * K + np.eye(len(K)))
+    VY = V.T @ y_train_c
+    A = np.stack([alpha[d] * (V @ (VY[:, d] / (lam + alpha[d]))) for d in range(y_train_c.shape[1])], axis=1)
+    return X_train_z.T @ (A / alpha), beta * A
 
 
 def fracridge_cv(X_train_z, y_train_c, frac_grid, cv):

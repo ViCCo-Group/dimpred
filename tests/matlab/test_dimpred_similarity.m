@@ -29,6 +29,7 @@
 % See also DIMPRED_SIMILARITY, RUN_DIMPRED_TESTS
 
 % History:
+% 2026/10/04: tests of the close-pair term (features, model)
 % 2026/09/30: NaN and Inf give an error, as in Python
 % 2026/09/30: after the second review: large values in a small range
 % 2026/09/30: after review: failure messages for all checks, no global
@@ -196,6 +197,72 @@ end
 
 
 %% Helpers
+
+function test_close_pairs_add_network_similarity_of_close_pairs(testCase)
+model = dimpred_load_model;
+embedding = 0.5 * random_embedding(6, 66, 11);
+features = features_with_close_pairs(6, size(model.weights, 1), 12);
+D = embedding * embedding' + close_pair_term(features, model.close_pairs_weight, model.close_pairs_threshold);
+testCase.verifyEqual(dimpred_similarity(embedding, 'dot', features), D, 'AbsTol', 1e-12, ...
+    'dot with features should add the close-pair term');
+testCase.verifyEqual(dimpred_similarity(embedding, [], features), spose_from_dots(D), 'AbsTol', 1e-12, ...
+    'spose with features should use the dot products plus the close-pair term');
+end
+
+function test_features_without_close_pairs_change_nothing(testCase)
+% random features in 768 dimensions have cosines near 0, below the threshold
+embedding = random_embedding(8, 66, 13);
+stream = RandStream('mt19937ar', 'Seed', 14);
+features = randn(stream, 8, 768);
+S = dimpred_similarity(embedding, [], features);
+S0 = dimpred_similarity(embedding);
+off = ~eye(8);
+testCase.verifyEqual(S(off), S0(off), 'AbsTol', 1e-12, 'Features without close pairs should change nothing');
+end
+
+function test_model_without_close_pairs_gives_error(testCase)
+testCase.verifyError(@() dimpred_similarity(random_embedding(4, 66, 15), [], ones(4, 1024), 'rn50x64_66d_ridge'), ...
+    'dimpred:noClosePairs', 'A model without close-pair settings should give an error with features');
+end
+
+function test_features_of_wrong_size_give_error(testCase)
+embedding = random_embedding(5, 66, 16);
+testCase.verifyError(@() dimpred_similarity(embedding, [], ones(4, 768)), 'dimpred:wrongFeatureCount', ...
+    'Features with another number of rows than the embedding should give an error');
+testCase.verifyError(@() dimpred_similarity(embedding, [], ones(5, 512)), 'dimpred:wrongFeatureCount', ...
+    'Features with the wrong number of columns should give an error');
+end
+
+function features = features_with_close_pairs(n_objects, n_features, seed)
+% Random features where objects 1 and 2, and 3 and 4, are very close (cosine about 0.99)
+stream = RandStream('mt19937ar', 'Seed', seed);
+features = randn(stream, n_objects, n_features);
+features(2, :) = features(1, :) + 0.1 * randn(stream, 1, n_features);
+features(4, :) = features(3, :) + 0.1 * randn(stream, 1, n_features);
+end
+
+function term = close_pair_term(features, weight, threshold)
+unit = features ./ sqrt(sum(features .^ 2, 2));
+term = weight * max(0, unit * unit' - threshold);
+end
+
+function S = spose_from_dots(dots)
+% Slow loop over all triplets for a matrix of dot products
+n_objects = size(dots, 1);
+S = eye(n_objects);
+for i = 1:n_objects
+    for j = [1:i-1, i+1:n_objects]
+        k_list = setdiff(1:n_objects, [i j]);
+        p = zeros(1, numel(k_list));
+        for i_k = 1:numel(k_list)
+            k = k_list(i_k);
+            three = exp([dots(i, j), dots(i, k), dots(j, k)]);
+            p(i_k) = three(1) / sum(three);
+        end
+        S(i, j) = mean(p);
+    end
+end
+end
 
 function embedding = random_embedding(n_objects, n_dims, seed)
 % Non-negative random embedding like SPoSE dimensions. We use our own

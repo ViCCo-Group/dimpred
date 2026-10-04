@@ -6,10 +6,16 @@ import scipy.io
 from .list_models import list_models
 
 # History:
+# 2026/10/04: optional kernel part (kernel_features, kernel_coefficients,
+#   kernel_tau) and close-pair settings (close_pairs_weight,
+#   close_pairs_threshold); new default model alignet_siglip2b_66d_kernel
 # 2026/10/02: new default model alignet_siglip2b_66d_ridge
 # 2026/09/30: written for the first release of the package
 
 VARIABLES = ["weights", "feature_mean", "feature_scale", "target_mean", "labels", "info"]
+# optional, each group all or none
+KERNEL_VARIABLES = ["kernel_features", "kernel_coefficients", "kernel_tau"]
+CLOSE_PAIRS_VARIABLES = ["close_pairs_weight", "close_pairs_threshold"]
 
 
 def load_model(model=None):
@@ -39,11 +45,18 @@ def load_model(model=None):
                        layer, preprocessing, embedding, regression,
                        training_images, source, note, created (text) and
                        n_features, n_dims (numbers)
+    A model with a local kernel (e.g. the default model) also has
+        kernel_features      n_train x n_features, the features of the
+                             training images, scaled to length 1
+        kernel_coefficients  n_train x n_dims
+        kernel_tau           width of the kernel (see predict)
+    and the settings of the close-pair term of similarity:
+        close_pairs_weight, close_pairs_threshold
     You can build your own model files in the same format and pass their path.
 
     Input:
         model: one of
-               None:  the default model (dimpred.DEFAULT_MODEL, "alignet_siglip2b_66d_ridge")
+               None:  the default model (dimpred.DEFAULT_MODEL, "alignet_siglip2b_66d_kernel")
                name:  a model that comes with dimpred (see list_models)
                path:  the path of a model file (.mat)
                dict:  a model that was already loaded, returned unchanged
@@ -57,6 +70,10 @@ def load_model(model=None):
                labels         list of n_dims str
                info           dict (text fields as str, n_features and n_dims as int)
                file           absolute path of the model file
+               kernel_features, kernel_coefficients (float64 arrays),
+               kernel_tau, close_pairs_weight, close_pairs_threshold
+                              (float): the kernel part and the close-pair
+                              settings, None if the model has none
 
     Example:
         model = dimpred.load_model("rn50x64_49d_ridge")
@@ -101,6 +118,15 @@ def load_model(model=None):
         if field in info:
             info[field] = int(info[field])  # saved as double in the file
 
+    for variable in KERNEL_VARIABLES + CLOSE_PAIRS_VARIABLES:
+        if variable in data and np.size(data[variable]) == 0:
+            del data[variable]  # an empty variable (e.g. [] from a MATLAB struct) means: not there
+    for group in [KERNEL_VARIABLES, CLOSE_PAIRS_VARIABLES]:
+        present = [variable for variable in group if variable in data]
+        if present and len(present) < len(group):
+            raise ValueError(f"The model file {fname} has {', '.join(present)} but not "
+                             f"{', '.join(v for v in group if v not in present)}. These variables go together.")
+
     model = {
         "weights": weights,
         "feature_mean": np.asarray(data["feature_mean"], dtype=float).ravel(),
@@ -109,7 +135,20 @@ def load_model(model=None):
         "labels": [str(label) for label in np.atleast_1d(data["labels"])],  # one label comes back as plain str
         "info": info,
         "file": fname,
+        "kernel_features": None,
+        "kernel_coefficients": None,
+        "kernel_tau": None,
+        "close_pairs_weight": None,
+        "close_pairs_threshold": None,
     }
+    if "kernel_features" in data:
+        model["kernel_features"] = np.atleast_2d(np.asarray(data["kernel_features"], dtype=float))
+        coefficients = np.asarray(data["kernel_coefficients"], dtype=float)
+        model["kernel_coefficients"] = coefficients.reshape(-1, 1) if coefficients.ndim == 1 else coefficients
+        model["kernel_tau"] = float(data["kernel_tau"])
+    if "close_pairs_weight" in data:
+        model["close_pairs_weight"] = float(data["close_pairs_weight"])
+        model["close_pairs_threshold"] = float(data["close_pairs_threshold"])
 
     # Check that the sizes fit together
     n_features, n_dims = weights.shape
@@ -126,6 +165,15 @@ def load_model(model=None):
         problems.append(f"info.n_features is {info['n_features']}")
     if info.get("n_dims", n_dims) != n_dims:
         problems.append(f"info.n_dims is {info['n_dims']}")
+    if model["kernel_features"] is not None:
+        if model["kernel_features"].shape[1] != n_features:
+            problems.append(f"kernel_features has {model['kernel_features'].shape[1]} columns")
+        if model["kernel_coefficients"].shape != (model["kernel_features"].shape[0], n_dims):
+            problems.append(f"kernel_coefficients is {model['kernel_coefficients'].shape[0]} x "
+                            f"{model['kernel_coefficients'].shape[1]} (needed: {model['kernel_features'].shape[0]} "
+                            f"training images x {n_dims})")
+        if not model["kernel_tau"] > 0:
+            problems.append(f"kernel_tau is {model['kernel_tau']} (it has to be > 0)")
     if problems:
         raise ValueError(f"The model file {fname} is inconsistent: weights are {n_features} x {n_dims} "
                          f"(n_features x n_dims), but {', '.join(problems)}.")

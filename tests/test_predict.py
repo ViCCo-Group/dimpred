@@ -19,16 +19,19 @@ Hebartlab, 2026/09/30
 See also: test_load_model.py, test_validation_human.py, test_package.py
 """
 
+import importlib
 import os
 
 import numpy as np
 import pytest
 
 import dimpred
-from helpers import (DEFAULT_MODEL, MODEL_NAMES, MODELS, MODELS_DIR, TOL_FRESH_PREDICTION, TOL_MODEL, assert_close,
+from helpers import (DEFAULT_MODEL, KERNEL_MODEL_NAMES, LINEAR_MODEL_NAMES, MODEL_NAMES, MODELS, MODELS_DIR, TOL_FRESH_PREDICTION, TOL_MODEL, assert_close,
                      features_for)
 
 # History:
+# 2026/10/04: the default model is alignet_siglip2b_66d_kernel; the tests of the
+#   linear formula only for models without a kernel; tests of the kernel part
 # 2026/10/02: the default model is alignet_siglip2b_66d_ridge (768 AligNet features)
 # 2026/09/30: nan and inf give an error, as in MATLAB
 # 2026/09/30: predictions of the CC0 reference features, transposed features,
@@ -74,7 +77,7 @@ def test_default_model_is_used_if_no_model_is_given(ref):
 
 # --- target_mean
 
-@pytest.mark.parametrize("name", MODEL_NAMES)
+@pytest.mark.parametrize("name", LINEAR_MODEL_NAMES)
 def test_features_at_the_training_mean_give_target_mean(name):
     # z-scored features are then 0, so only target_mean is left (all values
     # are > 0, so nothing is clipped). If target_mean is forgotten, this gives 0.
@@ -102,7 +105,7 @@ def test_predictions_for_real_images_are_not_mostly_zero(ref, name):
 
 # --- z-scoring and weights
 
-@pytest.mark.parametrize("name", MODEL_NAMES)
+@pytest.mark.parametrize("name", LINEAR_MODEL_NAMES)
 def test_one_standard_deviation_in_one_feature_adds_its_weights(name):
     # features = feature_mean, plus one feature_scale in feature k: the
     # z-scored features are 0 except a 1 at k, so the prediction is
@@ -273,3 +276,59 @@ def test_nan_or_inf_in_features_gives_error(ref, value):
     features[2, 10] = value
     with pytest.raises(ValueError, match="nan or inf"):
         dimpred.predict(features)
+
+
+# --- models with a local kernel
+
+def kernel_formula(features, model):
+    """The formula of predict for a model with a local kernel, written out without the batches of predict."""
+
+    features = np.asarray(features, dtype=float)
+    unit = features / np.sqrt((features ** 2).sum(axis=1, keepdims=True))
+    kernel = np.exp((unit @ model["kernel_features"].T - 1) / model["kernel_tau"])  # kernel_features have length 1
+    return np.maximum(linear_part(features, model) + kernel @ model["kernel_coefficients"], 0)
+
+
+@pytest.mark.parametrize("name", KERNEL_MODEL_NAMES)
+def test_kernel_prediction_equals_the_formula(ref, name):
+    model = dimpred.load_model(name)
+    features = features_for(ref, name)
+    assert_close(dimpred.predict(features, model), kernel_formula(features, model), 1e-10,
+                 f"{name}: prediction vs the formula with the kernel")
+
+
+@pytest.mark.parametrize("name", KERNEL_MODEL_NAMES)
+def test_kernel_part_changes_the_prediction(ref, name):
+    # without the kernel part (a model dict without it), the prediction is the linear part alone, which differs
+    model = dict(dimpred.load_model(name))
+    features = features_for(ref, name)
+    with_kernel = dimpred.predict(features, model)
+    model["kernel_features"] = None
+    without = dimpred.predict(features, model)
+    assert_close(without, np.maximum(linear_part(features, model), 0), 1e-12, "prediction without the kernel part")
+    assert np.abs(with_kernel - without).max() > 0.1, "the kernel part should change the predictions"
+
+
+@pytest.mark.parametrize("name", KERNEL_MODEL_NAMES)
+def test_kernel_prediction_does_not_depend_on_the_batches(ref, name, monkeypatch):
+    model = dimpred.load_model(name)
+    features = features_for(ref, name)
+    expected = dimpred.predict(features, model)
+    predict_module = importlib.import_module("dimpred.predict")  # the module (dimpred.predict is the function)
+    monkeypatch.setattr(predict_module, "KERNEL_BATCH", 7)
+    assert_close(dimpred.predict(features, model), expected, 1e-12, "prediction in batches of 7 images")
+
+
+@pytest.mark.parametrize("name", KERNEL_MODEL_NAMES)
+def test_kernel_model_with_features_that_are_all_zero_gives_error(ref, name):
+    features = features_for(ref, name)[:3].copy()
+    features[1] = 0
+    with pytest.raises(ValueError, match="all 0"):
+        dimpred.predict(features, name)
+
+
+@pytest.mark.parametrize("name", KERNEL_MODEL_NAMES)
+def test_kernel_features_have_length_1(name):
+    # the cosine in predict uses them as they are
+    norms = np.linalg.norm(dimpred.load_model(name)["kernel_features"], axis=1)
+    assert np.abs(norms - 1).max() < 1e-6, f"{name}: lengths of kernel_features from {norms.min()} to {norms.max()}"
