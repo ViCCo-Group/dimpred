@@ -74,6 +74,8 @@ import build_models  # noqa: E402
 import fit  # noqa: E402
 
 # History:
+# 2026/10/04: kernel_ridge_fit and the model alignet_siglip2b_66d_kernel; fit_model
+#   returns the penalties only with return_alphas
 # 2026/10/02: build_models.py extracts on the cpu by default; call.py says
 #   which ridge "ridge" is (after the review)
 # 2026/10/02: tests of the new ridge (ridge_cv), which is now "ridge"; the
@@ -555,7 +557,8 @@ def test_build_models_fracridge_uses_the_settings_of_call_py():
     assert_close(weights, coef, 1e-10, "weights of build_models.fit_model vs fracridge_cv with 3 x 3 folds")
 
 
-@pytest.mark.parametrize("name, regression", [("alignet_siglip2b_66d_ridge", "ridge"), ("rn50x64_66d_ridge", "ridge"),
+@pytest.mark.parametrize("name, regression", [("alignet_siglip2b_66d_kernel", "ridge + kernel"),
+                                              ("alignet_siglip2b_66d_ridge", "ridge"), ("rn50x64_66d_ridge", "ridge"),
                                               ("rn50x64_49d_ridge", "fracridge"),
                                               ("rn50x64_66d_elastic", "elastic"), ("vitb32_66d_elastic", "elastic")])
 def test_build_models_fits_each_model_with_its_regression(name, regression):
@@ -804,6 +807,73 @@ def test_sped_up_ridge_gives_the_weights_of_philipps_original_code(sped_up_fit, 
     weights, _ = sped_up_fit
     assert_close(weights, original["weights"], TOL_ORIGINAL_WEIGHTS,
                  "fracridge_cv weights (RN50x64, 66d) vs Philipp's original code")
+
+
+# --- the ridge plus a local kernel (kernel_ridge_fit, 1.2.0)
+
+def kernel_problem(seed=0, n=40, p=10, n_targets=3):
+    rng = np.random.default_rng(seed)
+    X = rng.standard_normal((n, p)) + 0.5
+    y = X[:, :n_targets] ** 2 + 0.1 * rng.standard_normal((n, n_targets))
+    X_z, y_c, standardizer, y_mean = fit.preprocess_data(X.copy(), y.copy())
+    alpha = np.array([0.5, 2.0, 8.0])[:n_targets]
+    return X, X_z, y_c, alpha
+
+
+def test_kernel_ridge_fit_with_beta_0_is_the_ridge():
+    X, X_z, y_c, alpha = kernel_problem()
+    weights, coefficients = fit.kernel_ridge_fit(X_z, y_c, X, alpha, beta=0.0, tau=0.5)
+    ridge = np.stack([np.linalg.solve(X_z.T @ X_z + a * np.eye(X_z.shape[1]), X_z.T @ y_c[:, d])
+                      for d, a in enumerate(alpha)], axis=1)
+    assert_close(weights, ridge, 1e-10, "kernel_ridge_fit with beta 0 vs ridge")
+    assert_close(coefficients, np.zeros_like(coefficients), 1e-12, "kernel coefficients with beta 0")
+
+
+def test_kernel_ridge_fit_solves_the_joint_problem():
+    # dual solution written out: A_d = (Z Z' / alpha_d + beta K + I)^-1 y_d, w_d = Z' A_d / alpha_d, c_d = beta A_d
+    X, X_z, y_c, alpha = kernel_problem(1)
+    beta, tau = 3.0, 0.5
+    unit = X / np.linalg.norm(X, axis=1, keepdims=True)
+    K = np.exp((unit @ unit.T - 1) / tau)
+    A = np.stack([np.linalg.solve(X_z @ X_z.T / a + beta * K + np.eye(len(X)), y_c[:, d]) for d, a in enumerate(alpha)],
+                 axis=1)
+    weights, coefficients = fit.kernel_ridge_fit(X_z, y_c, X, alpha, beta, tau)
+    assert_close(weights, X_z.T @ (A / alpha), 1e-9, "linear part vs dual solution")
+    assert_close(coefficients, beta * A, 1e-9, "kernel coefficients vs dual solution")
+
+
+def test_kernel_ridge_fit_fits_the_training_data_better_than_the_ridge():
+    X, X_z, y_c, alpha = kernel_problem(2)
+    weights, coefficients = fit.kernel_ridge_fit(X_z, y_c, X, alpha, beta=3.0, tau=0.5)
+    unit = X / np.linalg.norm(X, axis=1, keepdims=True)
+    fitted = X_z @ weights + np.exp((unit @ unit.T - 1) / 0.5) @ coefficients
+    ridge, _ = fit.kernel_ridge_fit(X_z, y_c, X, alpha, beta=0.0, tau=0.5)
+    assert np.mean((fitted - y_c) ** 2) < np.mean((X_z @ ridge - y_c) ** 2), "the kernel should fit the training data better"
+
+
+@pytest.mark.slow
+def test_shipped_kernel_model_is_the_refit_with_build_models():
+    # alignet_siglip2b_66d_kernel is what build_models gives on the cached AligNet features
+    fname = reference_features_file("AligNet SigLIP2-B")
+    if fname is None:
+        pytest.skip("AligNet SigLIP2-B features of the 1854 reference images not found (set DIMPRED_REFERENCE_FEATURES "
+                    "to the folder with features_AligNet-SigLIP2-B.npy)")
+    X = np.load(fname)
+    y = np.loadtxt(os.path.join(TRAINING_DATA, "spose_embedding_66d.txt"))
+    weights, feature_mean, feature_scale, target_mean, alphas = build_models.fit_model(X, y, "ridge", return_alphas=True)
+    weights, extra = build_models.fit_kernel(X, y, feature_mean, feature_scale, target_mean, alphas,
+                                             build_models.KERNEL["alignet_siglip2b_66d_kernel"])
+    shipped = load_mat(os.path.join(MODELS_DIR, "alignet_siglip2b_66d_kernel.mat"))
+    # The shipped file was built from the AligNet features of the DimPred benchmark, which differ from those
+    # of alignet_siglip2b_66d_ridge by up to 3e-7. With exactly these features the refit is the same up to
+    # rounding, with the other cache it is close.
+    same_features = np.abs(feature_mean - shipped["feature_mean"]).max() < 1e-12
+    tolerance = 1e-8 if same_features else 1e-4
+    assert_close(weights, shipped["weights"], tolerance, "refit vs shipped weights")
+    assert_close(extra["kernel_coefficients"], shipped["kernel_coefficients"], tolerance, "refit vs shipped coefficients")
+    assert_close(extra["kernel_features"].astype(float), np.asarray(shipped["kernel_features"], dtype=float),
+                 0 if same_features else 1e-5, "kernel_features")
+    assert abs(extra["close_pairs_threshold"] - float(shipped["close_pairs_threshold"])) < (1e-12 if same_features else 1e-5)
 
 
 @pytest.mark.slow

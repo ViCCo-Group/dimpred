@@ -1,7 +1,20 @@
-% function S = dimpred_similarity(embedding, method)
+% function S = dimpred_similarity(embedding, method, features, model)
 %
 % Predicted similarity between all pairs of objects (e.g. images) from
 % their SPoSE dimensions, e.g. the output of dimpred_predict.
+%
+% With features (the network features of the same objects, as passed to
+% dimpred_predict), the network's own similarity is added for pairs that
+% are very close in the network (close pairs). The dot products of the
+% embedding are then replaced by
+%
+%   D(i,j) = e_i*e_j' + close_pairs_weight * max(0, cos(f_i, f_j) - close_pairs_threshold)
+%
+% where cos is the cosine of the features. The weight and the threshold
+% come from the model (default: the default model; the threshold is the
+% 90th percentile of the cosines between its 1854 training images, so only
+% the closest pairs change). This is the default method of dimpred since
+% version 1.2.0. Without features, S comes from the embedding alone.
 %
 % With method 'spose' (default), the similarity of objects i and j is the
 % probability that i and j are picked as the most similar pair in an
@@ -21,7 +34,8 @@
 % not change the probabilities, but exp cannot overflow for large dot
 % products.
 %
-% With method 'dot', S is the matrix of dot products, embedding * embedding'.
+% With method 'dot', S is the matrix of dot products, embedding * embedding'
+% (with features: D above).
 %
 % Computing time: the spose similarity loops over the objects i and
 % computes all triplets (i,j,k) with j > i at once, with a matrix of up to
@@ -31,24 +45,32 @@
 % Input:
 %   embedding: n_objects x n_dims (one row per object), all values finite
 %   method:    'spose' (default) or 'dot'; [] also gives 'spose'
+%   features:  optional, the network features of the objects,
+%              n_objects x n_features (the input of dimpred_predict), for
+%              the close-pair term ([] or omitted: none)
+%   model:     the model whose close-pair settings are used (default: [],
+%              the default model); only used with features
 %
 % Output:
 %   S: n_objects x n_objects similarity matrix (double, symmetric)
 %
 % Example:
-%   embedding = dimpred_predict(dimpred_extract_features(dimpred_find_images('my_images')));
-%   S = dimpred_similarity(embedding);
+%   features = dimpred_extract_features(dimpred_find_images('my_images'));
+%   embedding = dimpred_predict(features);
+%   S = dimpred_similarity(embedding, [], features);  % with the close pairs (recommended)
+%   S_dims = dimpred_similarity(embedding);           % from the dimensions alone
 %
 % Hebartlab, 2026/09/30
 %
 % See also DIMPRED_PREDICT
 
 % History:
+% 2026/10/04: features and model: the close-pair term of the default model
 % 2026/09/30: NaN and Inf give an error, as in Python
 % 2026/09/30: written for the first release of the package, following
 %   embedding2sim_stable_fast2.m, but vectorized over two objects
 
-function S = dimpred_similarity(embedding, method)
+function S = dimpred_similarity(embedding, method, features, model)
 
 % Check input
 if ~exist('method', 'var') || isempty(method), method = 'spose'; end
@@ -64,27 +86,64 @@ if ~isempty(not_finite)
         'Please remove these objects or check their features.'], numel(not_finite), size(embedding, 1), not_finite(1))
 end
 embedding = double(embedding);
+if ~any(strcmpi(method, {'spose', 'dot'}))
+    error('dimpred:unknownMethod', 'Unknown method ''%s''. Use ''spose'' or ''dot''.', method)
+end
+
+% The dot products of the embedding, with features plus the close-pair term
+dots = embedding * embedding';
+if exist('features', 'var') && ~isempty(features)
+    if ~exist('model', 'var'), model = []; end
+    dots = dots + close_pairs(features, size(embedding, 1), model);
+end
 
 switch lower(method)
     case 'dot'
-        S = embedding * embedding';
+        S = dots;
     case 'spose'
-        S = spose_similarity(embedding);
-    otherwise
-        error('dimpred:unknownMethod', 'Unknown method ''%s''. Use ''spose'' or ''dot''.', method)
+        S = spose_similarity(dots);
 end
 
 
 %% Subfunctions
 
-function S = spose_similarity(embedding)
+function term = close_pairs(features, n_objects, model)
+% The close-pair term: close_pairs_weight * max(0, cos(f_i, f_j) - close_pairs_threshold) for all pairs
 
-n_objects = size(embedding, 1);
+model = dimpred_load_model(model);
+name = model.file;
+if isfield(model, 'info') && isfield(model.info, 'name'), name = model.info.name; end
+if ~isfield(model, 'close_pairs_weight') || isempty(model.close_pairs_weight)
+    error('dimpred:noClosePairs', ['The model %s has no close-pair settings, so dimpred_similarity cannot ' ...
+        'use the features. Use a model with close_pairs_weight and close_pairs_threshold (e.g. the default ' ...
+        'model alignet_siglip2b_66d_kernel), or leave out the features.'], name)
+end
+if ~ismatrix(features) || size(features, 1) ~= n_objects
+    error('dimpred:wrongFeatureCount', ['The features have to be n_objects x n_features with one row per ' ...
+        'object of the embedding (%i rows), but they have size %s.'], n_objects, mat2str(size(features)))
+end
+if size(features, 2) ~= size(model.weights, 1)
+    error('dimpred:wrongFeatureCount', ['The model %s needs %i features per object, but the features have ' ...
+        '%i. The features have to come from the network of the model.'], name, size(model.weights, 1), ...
+        size(features, 2))
+end
+features = double(features);
+norms = sqrt(sum(features .^ 2, 2));
+if ~all(isfinite(features(:))) || any(norms == 0)
+    error('dimpred:notFinite', ['The features contain NaN or Inf, or rows that are all 0, so their cosines ' ...
+        'are not defined.'])
+end
+unit = features ./ norms;
+term = model.close_pairs_weight * max(0, unit * unit' - model.close_pairs_threshold);
+
+
+function S = spose_similarity(dots)
+
+n_objects = size(dots, 1);
 if n_objects < 3
     error('dimpred:tooFewObjects', ['The SPoSE similarity (method ''spose'') needs at least 3 objects (it is ' ...
         'defined by triplets of objects), but the embedding has %i.'], n_objects)
 end
-dots = embedding * embedding';
 
 % Most of the time goes into exp. If the dot products lie within a range
 % of 700, we compute exp once for all pairs, after subtracting the largest

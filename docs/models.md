@@ -7,15 +7,20 @@ Each model is one file in `dimpred/models` (see
 
 | model | network | features | dims | regression |
 |---|---|---|---|---|
-| `alignet_siglip2b_66d_ridge` (default) | AligNet SigLIP2-B (Muttenthaler et al., 2025), `pre_logits` | 768 | 66 | ridge |
+| `alignet_siglip2b_66d_kernel` (default) | AligNet SigLIP2-B (Muttenthaler et al., 2025), `pre_logits` | 768 | 66 | ridge + local kernel |
+| `alignet_siglip2b_66d_ridge` | AligNet SigLIP2-B, `pre_logits` | 768 | 66 | ridge |
 | `vitb32_66d_elastic` | OpenAI CLIP ViT-B/32 (open_clip `ViT-B-32-quickgelu`) | 512 | 66 | elastic net |
 | `rn50x64_49d_ridge` | OpenAI CLIP RN50x64 (open_clip `RN50x64`) | 1024 | 49 | fractional ridge |
 | `rn50x64_66d_ridge` | OpenAI CLIP RN50x64 | 1024 | 66 | ridge |
 | `rn50x64_66d_elastic` | OpenAI CLIP RN50x64 | 1024 | 66 | elastic net |
 
-- `alignet_siglip2b_66d_ridge` predicts the dimensions best (tables below).
-  Its network is the PyTorch port in `dimpred/alignet.py`
+- `alignet_siglip2b_66d_kernel` predicts the dimensions and similarity
+  best (tables below): the ridge of `alignet_siglip2b_66d_ridge` plus a
+  local kernel, fit together ([details](details.md#how-the-predictions-are-computed)),
+  and the settings of the close pairs of `similarity`. Its network is the
+  PyTorch port in `dimpred/alignet.py`
   ([training/alignet](../training/alignet/README.md)).
+- `alignet_siglip2b_66d_ridge` was the default model of dimpred 1.1.0.
 - `vitb32_66d_elastic` is the model of Contier et al. (2024), rebuilt with
   the corrected 66d embedding (see [below](#which-model-was-used-where)). It
   was the default model of dimpred 1.0.0.
@@ -51,6 +56,8 @@ diagonal), on image sets never used for training:
 
 | model | 48new | 48nonref | P-animals | P-automobiles | P-fruits | P-furniture | P-various | P-vegetables | K-92 | C-118 | mean 10 | mean 8 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `alignet_siglip2b_66d_kernel`, with the close pairs | 0.906 | 0.885 | 0.723 | 0.698 | 0.542 | 0.539 | 0.781 | 0.602 | 0.865 | 0.842 | 0.738 | 0.699 |
+| `alignet_siglip2b_66d_kernel` | 0.909 | 0.886 | 0.457 | 0.573 | 0.394 | 0.447 | 0.767 | 0.477 | 0.838 | 0.818 | 0.657 | 0.596 |
 | `alignet_siglip2b_66d_ridge` | 0.900 | 0.863 | 0.485 | 0.552 | 0.345 | 0.380 | 0.759 | 0.421 | 0.833 | 0.798 | 0.634 | 0.572 |
 | `vitb32_66d_elastic` | 0.870 | 0.825 | 0.365 | 0.506 | 0.346 | 0.410 | 0.713 | 0.378 | 0.812 | 0.751 | 0.598 | 0.535 |
 | `rn50x64_49d_ridge` | 0.848 | 0.810 | 0.186 | 0.541 | 0.362 | 0.331 | 0.691 | 0.313 | 0.771 | 0.770 | 0.562 | 0.496 |
@@ -65,6 +72,11 @@ diagonal), on image sets never used for training:
   arrangements, compared with the Euclidean distance of the predictions, as
   in the paper. All other sets use the SPoSE similarity of the predictions.
 - mean 8: the 8 sets without 48new and 48nonref.
+- "with the close pairs": `similarity(embedding, features=features)`, the
+  recommended way since 1.2.0. It helps most within the Peterson categories
+  (mean of the five: 0.621 instead of 0.470 without, 0.437 for
+  `alignet_siglip2b_66d_ridge`). All settings were chosen on THINGS, not on
+  these sets.
 - Homogeneous sets such as the Peterson fruits remain difficult for all
   models.
 
@@ -80,7 +92,9 @@ dimensions less well; we use SigLIP2-B. If you test predictions against
 THINGS odd-one-out data, use `vitb32_66d_elastic`.
 
 **Per dimension**, cross-validated on the 1854 training images (mean r over
-the 66 dimensions, 10 folds): 0.810 for `alignet_siglip2b_66d_ridge` and
+the 66 dimensions, 10 folds): 0.839 for `alignet_siglip2b_66d_kernel`
+(better than the ridge for all 66 dimensions; 0.784 against 0.750 when whole
+THINGS categories are left out of training), 0.810 for `alignet_siglip2b_66d_ridge` and
 0.779 for `rn50x64_66d_ridge` (0.758 with the fractional ridge of 1.0.0;
 on the 10 test sets the fractional ridge was better, 0.595 against 0.583).
 `rn50x64_49d_ridge`: 0.717, the mean over its 49 dimensions (the fractional

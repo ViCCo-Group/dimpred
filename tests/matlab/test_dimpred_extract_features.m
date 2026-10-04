@@ -116,7 +116,7 @@ end
 %% Features
 
 function test_default_model_features_match_reference(testCase)
-% Only the images are given: the default model (alignet_siglip2b_66d_ridge,
+% Only the images are given: the default model (alignet_siglip2b_66d_kernel,
 % network AligNet SigLIP2-B) and the Python in DIMPRED_PYTHON are used. The
 % reference features come from the TensorFlow model of the AligNet authors.
 testCase.assumeTrue(testCase.TestData.alignet_ok, ['Skipped because the AligNet weights were not found. ' ...

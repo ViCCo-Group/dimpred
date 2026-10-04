@@ -43,7 +43,7 @@
 %   images: cell array of image files, or one file as text
 %   model:  model name, path of a model file, or a model from
 %           dimpred_load_model; its network is used (default: [], the
-%           default model alignet_siglip2b_66d_ridge with the network
+%           default model alignet_siglip2b_66d_kernel with the network
 %           AligNet SigLIP2-B). Python gets a model struct as it is,
 %           also if it was changed or made by hand.
 %   cfg:    optional struct with the fields
@@ -75,6 +75,8 @@
 % See also DIMPRED_FIND_IMAGES, DIMPRED_PREDICT, DIMPRED_LOAD_MODEL
 
 % History:
+% 2026/10/04: new default model alignet_siglip2b_66d_kernel (help text); a model
+%   struct reaches Python with its kernel part and close-pair settings
 % 2026/10/02: after review: a model struct reaches Python as it is; the
 %   length of the command line is counted in bytes; trailing backslashes
 %   on Windows
@@ -162,7 +164,11 @@ mkdir(out_folder);
 remove_out_folder = onCleanup(@() rmdir(out_folder, 's'));
 if model_is_struct
     model_file = fullfile(out_folder, 'model.mat');
-    save(model_file, '-struct', 'model', model_variables{:}, '-v7');
+    % with the kernel part and the close-pair settings, if the model has them
+    optional = {'kernel_features', 'kernel_coefficients', 'kernel_tau', 'close_pairs_weight', 'close_pairs_threshold'};
+    optional = optional(isfield(model, optional));
+    optional = optional(cellfun(@(v) ~isempty(model.(v)), optional));
+    save(model_file, '-struct', 'model', model_variables{:}, optional{:}, '-v7');
 else
     model_file = model.file;
 end

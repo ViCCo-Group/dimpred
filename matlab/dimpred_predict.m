@@ -12,6 +12,16 @@
 % dimension values. Some earlier, unofficial wrappers left it out, which
 % makes the predictions too small and sets about 60% of them to 0.
 %
+% A model with a local kernel (the default model, alignet_siglip2b_66d_kernel)
+% adds a correction from the training images that are similar to each
+% image in the network:
+%
+%   embedding = max(z * weights + exp((cos - 1) / kernel_tau) * kernel_coefficients + target_mean, 0)
+%
+% where cos (n_images x n_train) is the cosine between the features of the
+% image and those of each training image (kernel_features), and z the
+% z-scored features as above.
+%
 % Each image is predicted on its own, i.e. the result for an image does
 % not depend on which other images are predicted at the same time.
 %
@@ -26,7 +36,7 @@
 %             Inf give an error.
 %   model:    model name, path of a model file, or a model from
 %             dimpred_load_model (default: [], the default model
-%             alignet_siglip2b_66d_ridge)
+%             alignet_siglip2b_66d_kernel)
 %
 % Output:
 %   embedding: predicted dimension values, double, n_images x n_dims (one
@@ -41,6 +51,7 @@
 % See also DIMPRED_LOAD_MODEL, DIMPRED_EXTRACT_FEATURES, DIMPRED_SIMILARITY
 
 % History:
+% 2026/10/04: models with a local kernel (the default model alignet_siglip2b_66d_kernel)
 % 2026/10/02: new default model alignet_siglip2b_66d_ridge (help text)
 % 2026/09/30: NaN and Inf give an error, as in Python
 % 2026/09/30: written for the first release of the package
@@ -83,6 +94,22 @@ end
 % each dimension
 z = (double(features) - model.feature_mean) ./ model.feature_scale;
 embedding = z * model.weights + model.target_mean;
+
+% The kernel part: cosines to the training images, in batches of images
+if isfield(model, 'kernel_features') && ~isempty(model.kernel_features)
+    norms = sqrt(sum(double(features) .^ 2, 2));
+    if any(norms == 0)
+        error('dimpred:zeroFeatures', ['The features of %i images are all 0 (the first is row %i). The model ' ...
+            'has a local kernel, which needs the cosine of the features.'], sum(norms == 0), find(norms == 0, 1))
+    end
+    unit = double(features) ./ norms;
+    batch = 4096;
+    for start = 1:batch:size(unit, 1)
+        rows = start:min(start + batch - 1, size(unit, 1));
+        cosines = unit(rows, :) * model.kernel_features';
+        embedding(rows, :) = embedding(rows, :) + exp((cosines - 1) / model.kernel_tau) * model.kernel_coefficients;
+    end
+end
 
 % SPoSE dimensions are non-negative
 embedding = max(embedding, 0);

@@ -34,6 +34,7 @@
 % See also DIMPRED_PREDICT, DIMPRED_LOAD_MODEL, RUN_DIMPRED_TESTS
 
 % History:
+% 2026/10/04: new default model alignet_siglip2b_66d_kernel; tests of the kernel part
 % 2026/10/02: new default model alignet_siglip2b_66d_ridge (768 AligNet features)
 % 2026/09/30: NaN and Inf give an error, as in Python
 % 2026/09/30: after review: column vector gives an error, failure messages
@@ -102,11 +103,11 @@ end
 
 function test_default_model_is_used_without_model(testCase)
 ref = testCase.TestData.ref;
-expected = ref.expected_alignet_siglip2b_66d_ridge;
+expected = ref.expected_alignet_siglip2b_66d_kernel;
 testCase.verifyEqual(dimpred_predict(ref.features_alignet), expected, 'AbsTol', 1e-10, ...
-    'dimpred_predict(features) should use the default model alignet_siglip2b_66d_ridge');
+    'dimpred_predict(features) should use the default model alignet_siglip2b_66d_kernel');
 testCase.verifyEqual(dimpred_predict(ref.features_alignet, []), expected, 'AbsTol', 1e-10, ...
-    'dimpred_predict(features, []) should use the default model alignet_siglip2b_66d_ridge');
+    'dimpred_predict(features, []) should use the default model alignet_siglip2b_66d_kernel');
 end
 
 
@@ -117,7 +118,7 @@ function test_feature_mean_gives_target_mean(testCase)
 % average value of each dimension. This fails if target_mean is not added,
 % the bug of earlier unofficial wrappers. target_mean is > 0, so clipping
 % at 0 plays no role here.
-names = shipped_models();
+names = setdiff(shipped_models(), {'alignet_siglip2b_66d_kernel'}); % the kernel part adds to the linear part
 for i_model = 1:numel(names)
     model = dimpred_load_model(names{i_model});
     testCase.verifyEqual(dimpred_predict(model.feature_mean, model), model.target_mean, 'AbsTol', 1e-12, ...
@@ -206,8 +207,8 @@ ref = testCase.TestData.ref;
 row = 7;
 embedding = dimpred_predict(ref.features_alignet(row, :));
 testCase.verifySize(embedding, [1 66], 'One image (1 x n_features) should give 1 x n_dims');
-testCase.verifyEqual(embedding, ref.expected_alignet_siglip2b_66d_ridge(row, :), 'AbsTol', 1e-10, ...
-    sprintf('Row %i predicted alone differs from expected_alignet_siglip2b_66d_ridge', row));
+testCase.verifyEqual(embedding, ref.expected_alignet_siglip2b_66d_kernel(row, :), 'AbsTol', 1e-10, ...
+    sprintf('Row %i predicted alone differs from expected_alignet_siglip2b_66d_kernel', row));
 end
 
 function test_column_vector_gives_error(testCase)
@@ -305,13 +306,33 @@ end
 end
 
 
+function test_kernel_prediction_matches_formula(testCase)
+% The kernel model: the linear part plus exp((cos - 1) / tau) * kernel_coefficients, written out here
+ref = testCase.TestData.ref;
+model = dimpred_load_model('alignet_siglip2b_66d_kernel');
+features = ref.features_alignet;
+unit = features ./ sqrt(sum(features .^ 2, 2));
+linear = ((features - model.feature_mean) ./ model.feature_scale) * model.weights + model.target_mean;
+expected = max(linear + exp((unit * model.kernel_features' - 1) / model.kernel_tau) * model.kernel_coefficients, 0);
+testCase.verifyEqual(dimpred_predict(features, model), expected, 'AbsTol', 1e-10, ...
+    'Predictions of the kernel model differ from the formula');
+end
+
+function test_kernel_model_with_zero_features_gives_error(testCase)
+features = testCase.TestData.ref.features_alignet(1:3, :);
+features(2, :) = 0;
+testCase.verifyError(@() dimpred_predict(features), 'dimpred:zeroFeatures', ...
+    'Features that are all 0 should give an error with a kernel model (their cosine is not defined)');
+end
+
+
 %% Helpers
 
 function names = shipped_models()
 % Names of the shipped models, sorted alphabetically (same list in
 % test_dimpred_load_model.m and test_dimpred_fixtures.m)
-names = {'alignet_siglip2b_66d_ridge'; 'rn50x64_49d_ridge'; 'rn50x64_66d_elastic'; 'rn50x64_66d_ridge'; ...
-    'vitb32_66d_elastic'};
+names = {'alignet_siglip2b_66d_kernel'; 'alignet_siglip2b_66d_ridge'; 'rn50x64_49d_ridge'; ...
+    'rn50x64_66d_elastic'; 'rn50x64_66d_ridge'; 'vitb32_66d_elastic'};
 end
 
 function features = features_for_model(ref, name)

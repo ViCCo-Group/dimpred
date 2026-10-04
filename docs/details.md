@@ -29,16 +29,18 @@ Contents:
 | `dimpred.find_images(folder)` | `files = dimpred_find_images(folder)` | image files directly in a folder, sorted by name, full paths |
 | `dimpred.extract_features(images, model=None, network=None, pretrained="openai", device=None, batch_size=32)` | `[features, files] = dimpred_extract_features(images, model, cfg)` | network features of image files |
 | `dimpred.predict(features, model=None)` | `embedding = dimpred_predict(features, model)` | predicted dimension values |
-| `dimpred.similarity(embedding, method="spose")` | `S = dimpred_similarity(embedding, method)` | predicted similarity, `"spose"` or `"dot"` |
+| `dimpred.similarity(embedding, method="spose", features=None, model=None)` | `S = dimpred_similarity(embedding, method, features, model)` | predicted similarity, `"spose"` or `"dot"`; with the features also the close pairs |
 | `dimpred.rise(images, model=None, n_masks=6000, ...)` | `result = dimpred_rise(images, model, cfg)` | heatmaps of the predicted dimensions (RISE) |
 
 The Python and MATLAB functions take the same arguments, except that the
 MATLAB functions that run Python take their options in `cfg`, and give the
-same numbers. `dimpred.DEFAULT_MODEL` is `"alignet_siglip2b_66d_ridge"`.
+same numbers. `dimpred.DEFAULT_MODEL` is `"alignet_siglip2b_66d_kernel"`.
 Wherever a model is expected, you can pass nothing (default model), the name
 of a shipped model, the path to a model file, or a model that was already
 loaded: a dict in Python and a struct in MATLAB with the fields `weights`,
-`feature_mean`, `feature_scale`, `target_mean`, `labels`, `info` and `file`.
+`feature_mean`, `feature_scale`, `target_mean`, `labels`, `info` and `file`
+(and, for a model with a local kernel, the fields of its kernel part and of
+the close pairs, see [Model files](#model-files)).
 
 ## Images and limitations
 
@@ -91,13 +93,35 @@ embedding = np.maximum(z @ model["weights"] + model["target_mean"], 0)
   has to be added back.
 - Values below 0 are set to 0, because SPoSE dimensions are non-negative.
 
+**The local kernel (default model since 1.2.0).** `alignet_siglip2b_66d_kernel`
+adds a correction from the training images that are similar to each image
+in the network:
+
+```
+cos = (features ./ vecnorm(features, 2, 2)) * kernel_features'
+embedding = max(z * weights + exp((cos - 1) / kernel_tau) * kernel_coefficients + target_mean, 0)
+```
+
+with `z` the z-scored features as above and `kernel_features` the features
+of the 1854 training images, scaled to length 1. The correction is a
+similarity-weighted sum of how much the model misses the training images
+near the image. The ridge part and the kernel part were fit together, in
+closed form (a Gaussian process with the covariance `beta *
+exp((cos - 1) / tau)`; `training/fit.py`, `kernel_ridge_fit`), with tau =
+0.5 and beta = 10 chosen on THINGS out of fold. Compared with the ridge
+alone (`alignet_siglip2b_66d_ridge`), every dimension is predicted better
+(mean r 0.839 instead of 0.810, the color dimensions 0.754 instead of 0.734),
+also for categories of concepts left out of training (0.784 instead of
+0.750). Each image is still predicted on its own.
+
 Some earlier, unofficial wrappers left out `target_mean`. This makes the
 predictions too small and sets about 60% of them to zero, and the correlation
 of predicted with human similarity for the 48nonref images drops by about
-0.05 (from 0.81 to 0.76 for the paper model, from 0.86 to 0.81 for the default
-model). Predictions made with such a wrapper should be made again. A quick
-check of any implementation: features equal to `feature_mean` have to give
-`target_mean` as prediction, e.g. `dimpred.predict(model["feature_mean"], model)`.
+0.05 (from 0.81 to 0.76 for the paper model, from 0.86 to 0.81 for
+`alignet_siglip2b_66d_ridge`). Predictions made with such a wrapper should be
+made again. A quick check of any implementation of a model without a kernel:
+features equal to `feature_mean` have to give `target_mean` as prediction,
+e.g. `dimpred.predict(model["feature_mean"], model)`.
 
 ### Model files
 
@@ -113,10 +137,15 @@ can also be used without this package, with MATLAB's `load` or with
 | `target_mean` | 1 x n_dims | mean of each dimension in the training images |
 | `labels` | n_dims x 1 cell | names of the dimensions |
 | `info` | struct | the text fields name, network, pretrained, layer, preprocessing, embedding, regression, training_images, source, note and created, and the numbers n_features and n_dims |
+| `kernel_features` | n_train x n_features | only with a local kernel: features of the training images, length 1 (single precision) |
+| `kernel_coefficients` | n_train x n_dims | only with a local kernel |
+| `kernel_tau` | 1 x 1 | only with a local kernel: width of the kernel |
+| `close_pairs_weight`, `close_pairs_threshold` | 1 x 1 | only for the close pairs of `similarity` |
 
 A file in this format can be given as `model` to all functions. A file
-without one of the variables gives an error, it is never filled with
-defaults.
+without one of the first six variables gives an error, it is never filled
+with defaults. The kernel variables and the close-pair variables are
+optional, but each group has to be complete.
 
 ## Similarity
 
@@ -140,9 +169,31 @@ little on the other images in the set, and at least 3 images are needed. The
 mean of all values off the diagonal is exactly 1/3 (a quick check of any
 implementation).
 
+**Close pairs (since 1.2.0).** With the features of the images,
+`similarity(embedding, features=features)` (MATLAB:
+`dimpred_similarity(embedding, [], features)`) adds the network's own
+similarity for pairs of images that are very close in the network. The dot
+products above are replaced by
+
+```
+D[i, j] = e_i.e_j + close_pairs_weight * max(0, cos(f_i, f_j) - close_pairs_threshold)
+```
+
+with `cos` the cosine of the features. The weight (8) and the threshold
+(0.448, the 90th percentile of the cosines between the 1854 training images,
+so only the closest pairs change) come from the model (`model=`, default:
+the default model; models without these settings give an error). The
+dimensions describe the differences between kinds of objects well but the
+fine differences within a kind less well, and the network knows these. On
+the 8 independent test sets of the benchmark, the correlation with human
+similarity is 0.699 with the close pairs and 0.596 without (0.572 in 1.1.0);
+within the five Peterson categories 0.621 instead of 0.470. This is the
+recommended way to predict similarity. Without the features, `similarity`
+works as before.
+
 `similarity(embedding, "dot")` (MATLAB: `dimpred_similarity(embedding, 'dot')`)
-gives the plain dot product `embedding @ embedding.T`, which does not depend
-on the other images. In the benchmarks, Kriegeskorte-92 and Cichy-118 were
+gives the plain dot product `embedding @ embedding.T` (with features: `D`
+above), which does not depend on the other images. In the benchmarks, Kriegeskorte-92 and Cichy-118 were
 compared with the Euclidean distance between the predicted embeddings, which
 you can compute with `scipy.spatial.distance.pdist` in Python or `pdist` in
 MATLAB (Statistics and Machine Learning Toolbox).
@@ -288,7 +339,7 @@ IMAGE can be files or folders. Folders are expanded to their images with
 `find_images`, files stay in the given order, and the rows of the output are
 in the order in which the images were given. `--model` takes the name of a
 shipped model or the path of a model file (default:
-`alignet_siglip2b_66d_ridge`). The second form predicts from features that
+`alignet_siglip2b_66d_kernel`). The second form predicts from features that
 were computed before and does not need torch. Give the same `--model` as for
 the extraction: the model name stored in a file written with `--features-only`
 is not read. The third form saves the heatmaps of `rise` (see

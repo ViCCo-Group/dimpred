@@ -10,6 +10,7 @@ models, not to use the models (see the [main README](../README.md)).
 Contents:
 [Reproducing the DimPred paper](#reproducing-the-dimpred-paper) |
 [The ridge regression of 1.1.0](#the-ridge-regression-of-110) |
+[The ridge plus a local kernel (1.2.0)](#the-ridge-plus-a-local-kernel-120) |
 [Rebuilding the shipped models](#rebuilding-the-shipped-models) |
 [Feature extraction](#feature-extraction) |
 [training/data](#trainingdata) |
@@ -114,6 +115,25 @@ fold and equal those of scikit-learn's `Ridge` at the chosen alpha
 - The chosen lambda is 0.18 to 1.8 for RN50x64 and 0.24 to 1.3 for AligNet
   SigLIP2-B, far from both ends of the grid.
 
+## The ridge plus a local kernel (1.2.0)
+
+The default model of 1.2.0, `alignet_siglip2b_66d_kernel`, is the ridge of
+`alignet_siglip2b_66d_ridge` (the same penalties) plus a local kernel, fit
+together in closed form (`fit.py`, `kernel_ridge_fit`; a Gaussian process
+with the covariance `beta * exp((cos - 1) / tau)` over the cosine of the
+features, beta 10 and tau 0.5). `build_models.py` builds it with the
+regression `"ridge + kernel"` and stores the features of the 1854 images
+(length 1, single precision), the kernel coefficients and tau, and the
+settings of the close pairs of `dimpred.similarity` (weight 8, threshold the
+90th percentile of the cosines between the 1854 images). The settings were
+chosen on THINGS out of fold (10 folds of the concepts, the mean of the
+odd-one-out accuracy for all triplets and within categories), in
+`dimpred-alignet-port/global_local` (`exp15_local_kernel.py`,
+`exp16_kernel_test.py`, `KERNEL.md`). The shipped file was built from the
+cached AligNet features of the 1854 images of the DimPred benchmark; its
+feature mean and std agree with those of `alignet_siglip2b_66d_ridge` within
+3e-7.
+
 ## Rebuilding the shipped models
 
 ```
@@ -153,6 +173,8 @@ dimension.
   2e-6, because the extracted features differ slightly from those of the
   paper), but not the exact ones.
 
+`alignet_siglip2b_66d_kernel` was built on 2026/10/04 (see
+[above](#the-ridge-plus-a-local-kernel-120)).
 `rn50x64_66d_ridge` and `alignet_siglip2b_66d_ridge` were built on
 2026/10/02 (AligNet features extracted on the cpu; later on the same day,
 only the `info.note` of the AligNet model was changed). `vitb32_66d_elastic`

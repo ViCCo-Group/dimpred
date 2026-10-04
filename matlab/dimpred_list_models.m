@@ -16,7 +16,7 @@
 %
 % Output:
 %   names: cell column with the names of the models, sorted alphabetically,
-%          e.g. {'alignet_siglip2b_66d_ridge'; 'rn50x64_49d_ridge'; ...
+%          e.g. {'alignet_siglip2b_66d_kernel'; 'alignet_siglip2b_66d_ridge'; ...
 %                'rn50x64_66d_elastic'; 'rn50x64_66d_ridge'; 'vitb32_66d_elastic'}
 %
 % Example:
@@ -31,6 +31,7 @@
 % See also DIMPRED_LOAD_MODEL
 
 % History:
+% 2026/10/04: new default model alignet_siglip2b_66d_kernel (help text)
 % 2026/10/02: dimpred_rise in the help text
 % 2026/10/02: new model alignet_siglip2b_66d_ridge in the help text
 % 2026/09/30: written for the first release of the package

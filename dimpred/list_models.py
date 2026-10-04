@@ -1,6 +1,7 @@
 import os
 
 # History:
+# 2026/10/04: new model alignet_siglip2b_66d_kernel in the example
 # 2026/10/02: new model alignet_siglip2b_66d_ridge in the example
 # 2026/09/30: written for the first release of the package
 
@@ -19,8 +20,8 @@ def list_models():
 
     Output:
         names: list of str, sorted alphabetically, e.g.
-               ['alignet_siglip2b_66d_ridge', 'rn50x64_49d_ridge', 'rn50x64_66d_elastic',
-                'rn50x64_66d_ridge', 'vitb32_66d_elastic']
+               ['alignet_siglip2b_66d_kernel', 'alignet_siglip2b_66d_ridge', 'rn50x64_49d_ridge',
+                'rn50x64_66d_elastic', 'rn50x64_66d_ridge', 'vitb32_66d_elastic']
 
     Example:
         for name in dimpred.list_models():

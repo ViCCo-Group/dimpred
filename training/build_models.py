@@ -27,11 +27,17 @@ What happens for each model:
        regularization, random_state 0. The regression is "ridge" (ridge with
        the penalty chosen directly, since 2026/10/02), "fracridge" (the
        fractional ridge of the DimPred paper) or "elastic" (elastic net), see
-       MODELS below.
+       MODELS below. For "ridge + kernel" (the default model since
+       2026/10/04), the ridge is fit first, and then the ridge plus a local
+       kernel is fit together with the same penalties (fit.kernel_ridge_fit,
+       settings in KERNEL below). This model also gets the settings of the
+       close-pair term of dimpred.similarity (CLOSE_PAIRS below).
     3. Save the weights together with everything that is needed to use them:
        the mean and std of the features (for z-scoring new features) and the
        mean of each dimension. The regression is fit on centered dimension
-       values, so the mean has to be added back to every prediction.
+       values, so the mean has to be added back to every prediction. A
+       kernel model also stores the features of the 1854 images (scaled to
+       length 1, in single precision), the kernel coefficients and tau.
 
 The only exception is rn50x64_49d_ridge. This is the model of the DimPred
 paper, and we don't refit it but convert its published weights (OSF,
@@ -81,9 +87,11 @@ import time
 import numpy as np
 import scipy.io
 
-from fit import preprocess_data, train_model_with
+from fit import kernel_ridge_fit, preprocess_data, train_model_with
 
 # History:
+# 2026/10/04: new default model alignet_siglip2b_66d_kernel (ridge + local
+#   kernel, with the settings of the close-pair term of dimpred.similarity)
 # 2026/10/02: features are extracted on the cpu unless --device is given;
 #   note of alignet_siglip2b_66d_ridge without "default"
 # 2026/10/02: new ridge ("ridge", fit.ridge_cv) for rn50x64_66d_ridge and the
@@ -103,6 +111,13 @@ DATA = os.path.join(HERE, "data")
 # dimpred/alignet.py when the network is "AligNet SigLIP2-B".
 CLIP_LAYER = "image embedding (output of the image encoder, not normalized)"
 MODELS = [
+    dict(name="alignet_siglip2b_66d_kernel", network="AligNet SigLIP2-B", dims=66, regression="ridge + kernel",
+         pretrained="alignet_siglip2_b.safetensors (SigLIP2-B-alignet of Muttenthaler et al., 2025, "
+                    "converted from TensorFlow to PyTorch)",
+         layer="pre_logits (output of the attention pooling head of the image encoder, not normalized)",
+         note="AligNet SigLIP2-B (Muttenthaler et al., 2025; PyTorch port in dimpred/alignet.py) for the 66d "
+              "embedding, ridge plus a local kernel (dimpred 1.2.0). dimpred.similarity with the features adds "
+              "the close-pair term."),
     dict(name="alignet_siglip2b_66d_ridge", network="AligNet SigLIP2-B", dims=66, regression="ridge",
          pretrained="alignet_siglip2_b.safetensors (SigLIP2-B-alignet of Muttenthaler et al., 2025, "
                     "converted from TensorFlow to PyTorch)",
@@ -136,11 +151,26 @@ REGRESSION = {
     "ridge": "ridge regression with the penalty chosen directly, one per dimension (training/fit.py ridge_cv; "
              "penalty per image lambda from 1e-6 to 1e3, 8 per decade, selected by 3-fold cross-validation "
              "repeated 3 times, refit with the penalty of the inner folds)",
+    "ridge + kernel": "ridge regression with the penalty chosen directly, one per dimension (as "
+                      "alignet_siglip2b_66d_ridge), plus a local kernel fit together with it (training/fit.py "
+                      "kernel_ridge_fit; a Gaussian process with the covariance beta exp((cos - 1) / tau) over "
+                      "the cosine of the features, beta 10, tau 0.5, chosen on THINGS out of fold)",
     "fracridge": "fractional ridge regression, one per dimension (fracridge; 70 fractions from 0.1 to 1, "
                  "selected by 3-fold cross-validation repeated 3 times)",
     "elastic": "elastic net, one per dimension (sklearn ElasticNetCV; l1_ratio 0.01, 0.1, 0.3, 0.5, 0.7, "
                "0.9, 0.99 and 10 alphas, selected by 3-fold cross-validation repeated 3 times)",
 }
+
+# Settings of the kernel models, chosen on THINGS out of fold (10 folds of the
+# concepts; the mean of the odd-one-out accuracy for all THINGS triplets and
+# for the triplets within a category; dimpred-alignet-port/global_local,
+# exp15_local_kernel.py)
+KERNEL = {"alignet_siglip2b_66d_kernel": dict(beta=10.0, tau=0.5)}
+
+# Close-pair term of dimpred.similarity, stored with the kernel models: the
+# weight, and the threshold as the 90th percentile of the cosines between the
+# 1854 training images (chosen on THINGS out of fold, exp16_kernel_test.py)
+CLOSE_PAIRS = dict(weight=8.0, quantile=0.9)
 
 EMBEDDING = {
     49: "SPoSE 49d embedding of the 1854 THINGS concepts (Hebart et al., 2020, Nature Human Behaviour)",
@@ -178,11 +208,13 @@ def get_features(network, image_files, features_dir=None, device="cpu"):
     return features
 
 
-def fit_model(features, embedding, regression):
+def fit_model(features, embedding, regression, return_alphas=False):
     """Fit one regression per dimension with Philipp's training code.
 
     Returns the weights (n_features x n_dims) and the numbers needed to apply
-    them to new features: feature mean and std and the mean of each dimension.
+    them to new features: feature mean and std and the mean of each
+    dimension. With return_alphas, also the selected penalties (for "ridge"
+    the alpha of each dimension, needed for the kernel models).
     """
 
     # Philipp's inputs were text files (float64), the extracted features are
@@ -193,14 +225,39 @@ def fit_model(features, embedding, regression):
     _, _, standardizer, target_mean = preprocess_data(features.copy(), embedding.copy())
 
     # settings of call.py (get_trained_model_for)
-    model, _, _ = train_model_with(features.copy(), embedding.copy(), regression,
-                                   k_in=3, n_in=3, random_state=0)
+    model, alphas, _ = train_model_with(features.copy(), embedding.copy(), regression,
+                                        k_in=3, n_in=3, random_state=0)
     if regression in ["ridge", "fracridge"]:
         weights = model  # ridge_cv and fracridge_cv already return the weight matrix
     else:
         weights = np.stack([est.coef_ for est in model.estimators_], axis=1)
 
+    if return_alphas:
+        return weights, standardizer.mean_, standardizer.scale_, target_mean, alphas
     return weights, standardizer.mean_, standardizer.scale_, target_mean
+
+
+def fit_kernel(features, embedding, feature_mean, feature_scale, target_mean, alphas, settings):
+    """The ridge plus a local kernel with the penalties of the ridge (fit.kernel_ridge_fit), and the
+    settings of the close-pair term of dimpred.similarity.
+
+    Returns the weights of the linear part (n_features x n_dims) and the other
+    variables of the model file: kernel_features (the features of the
+    training images, scaled to length 1, single precision), kernel_coefficients
+    (n_images x n_dims), kernel_tau, close_pairs_weight, close_pairs_threshold.
+    """
+
+    features = np.asarray(features, dtype=float)
+    z = (features - feature_mean) / feature_scale
+    weights, coefficients = kernel_ridge_fit(z, embedding - target_mean, features, alphas,
+                                             settings["beta"], settings["tau"])
+    unit = features / np.linalg.norm(features, axis=1, keepdims=True)
+    cosines = unit @ unit.T
+    threshold = np.quantile(cosines[~np.eye(len(unit), dtype=bool)], CLOSE_PAIRS["quantile"])
+    extra = dict(kernel_features=unit.astype(np.float32), kernel_coefficients=coefficients,
+                 kernel_tau=float(settings["tau"]), close_pairs_weight=float(CLOSE_PAIRS["weight"]),
+                 close_pairs_threshold=float(threshold))
+    return weights, extra
 
 
 def load_published_model(published_dir):
@@ -212,8 +269,9 @@ def load_published_model(published_dir):
     return weights, standardizer.mean_, standardizer.scale_
 
 
-def save_model(fname, spec, weights, feature_mean, feature_scale, target_mean, labels, source):
-    """Write a model file that both dimpred_load_model.m and dimpred.load_model can read."""
+def save_model(fname, spec, weights, feature_mean, feature_scale, target_mean, labels, source, extra=None):
+    """Write a model file that both dimpred_load_model.m and dimpred.load_model can read (extra: the
+    variables of a kernel model, see fit_kernel)."""
 
     n_features, n_dims = weights.shape
     assert len(feature_mean) == n_features and len(feature_scale) == n_features, "feature statistics do not match weights"
@@ -243,6 +301,7 @@ def save_model(fname, spec, weights, feature_mean, feature_scale, target_mean, l
             target_mean=np.asarray(target_mean, dtype=float).reshape(1, -1),
             labels=np.array(labels, dtype=object).reshape(-1, 1),  # becomes a cell array in MATLAB
             info=info,
+            **(extra or {}),
         ),
         do_compression=True,
     )
@@ -293,11 +352,20 @@ def main(argv=None):
         else:
             features = get_features(spec["network"], image_files, args.features, args.device)
             assert features.shape[0] == y.shape[0], "number of images and rows of the embedding differ"
-            weights, feature_mean, feature_scale, target_mean = fit_model(features, y, spec["regression"])
             source = (f"fitted with training/build_models.py (Philipp Kaniuth's training code in training/fit.py, "
                       f"regularization '{spec['regression']}')")
+            if spec["regression"] == "ridge + kernel":
+                weights, feature_mean, feature_scale, target_mean, alphas = fit_model(features, y, "ridge",
+                                                                                      return_alphas=True)
+                weights, extra = fit_kernel(features, y, feature_mean, feature_scale, target_mean, alphas,
+                                            KERNEL[spec["name"]])
+                source = ("fitted with training/build_models.py (Philipp Kaniuth's training code in training/fit.py, "
+                          "regularization 'ridge', then fit.kernel_ridge_fit with the same penalties)")
+            else:
+                weights, feature_mean, feature_scale, target_mean = fit_model(features, y, spec["regression"])
 
-        save_model(fname, spec, weights, feature_mean, feature_scale, target_mean, labels[spec["dims"]], source)
+        save_model(fname, spec, weights, feature_mean, feature_scale, target_mean, labels[spec["dims"]], source,
+                   extra if spec["regression"] == "ridge + kernel" else None)
 
 
 if __name__ == "__main__":

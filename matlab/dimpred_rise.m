@@ -60,7 +60,7 @@
 %   model:  model name, path of a model file, or a model struct, e.g.
 %           from dimpred_load_model, which Python gets as it is, also if
 %           it was changed by hand (default: [], the default model
-%           alignet_siglip2b_66d_ridge)
+%           alignet_siglip2b_66d_kernel)
 %   cfg:    optional struct with the fields
 %     cfg.n_masks:    number of masks (default: 6000)
 %     cfg.png:        folder for PNG files (default: '', no PNG files): for
@@ -107,6 +107,8 @@
 % See also DIMPRED_EXTRACT_FEATURES, DIMPRED_PREDICT, DIMPRED_FIND_IMAGES
 
 % History:
+% 2026/10/04: new default model alignet_siglip2b_66d_kernel (help text); a model
+%   struct reaches Python with its kernel part and close-pair settings
 % 2026/10/02: after review: a model struct reaches Python as it is; error
 %   dimpred:tooManyImages for more than 2 GB of maps; trailing backslashes
 %   on Windows; no second start line
@@ -204,7 +206,11 @@ remove_out_folder = onCleanup(@() rmdir(out_folder, 's'));
 out_file = fullfile(out_folder, 'heatmaps.mat');
 if model_is_struct
     model_file = fullfile(out_folder, 'model.mat');
-    save(model_file, '-struct', 'model', model_variables{:}, '-v7');
+    % with the kernel part and the close-pair settings, if the model has them
+    optional = {'kernel_features', 'kernel_coefficients', 'kernel_tau', 'close_pairs_weight', 'close_pairs_threshold'};
+    optional = optional(isfield(model, optional));
+    optional = optional(cellfun(@(v) ~isempty(model.(v)), optional));
+    save(model_file, '-struct', 'model', model_variables{:}, optional{:}, '-v7');
 else
     model_file = model.file;
 end
