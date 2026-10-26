@@ -1,5 +1,13 @@
 # Changes
 
+## Next version
+
+- `extract_features` and `rise` (`dimpred_extract_features`,
+  `dimpred_rise`) warn once per call if some images are not square. The
+  AligNet models squeeze the longer edge of such images, the CLIP models
+  remove its ends, and all models were trained on square images
+  ([details](details.md#non-square-images)). The predictions do not change.
+
 ## 1.2.0
 
 - The default model is now `alignet_siglip2b_66d_kernel`: the same network
