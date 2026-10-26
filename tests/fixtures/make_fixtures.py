@@ -5,10 +5,32 @@ Usage:
     python make_fixtures.py --export <folder> --osf <folder> --cc0 <folder> --vit <folder>
                             --alignet <folder> --alignet-cc0 <file.npy>
     python make_fixtures.py --add-models NAME [NAME ...]
+    python make_fixtures.py --materials <dnn folder> <stuff_newsample folder> <features_stuff_newsample_350.mat>
 
 The second form adds the expected predictions and the correlation with human
 similarity of new shipped models to the existing reference_data.mat, from
-the features in it (used for alignet_siglip2b_66d_kernel on 2026/10/04).
+the features in it (used for alignet_siglip2b_66d_kernel on 2026/10/04, and
+for the models of the 36 material dimensions on 2026/10/26, which get only
+the expected predictions: the human similarity of the 48nonref images is
+that of THINGS objects).
+
+The third form makes materials_data.mat, the fixture of the models of the 36
+material dimensions (2026/10/26), from the files of the STUFF paper
+(Schmidt et al., 2025; not part of the repository):
+    dnn folder:   material600/dim36/dnn of the paper's analysis, with
+                  allpred_newsample.mat (the published predictions of the
+                  48 out-of-sample images)
+    stuff_newsample folder: the 48 out-of-sample images (images/, 350 x 350
+                  px, as the participants saw them) and their human
+                  similarity (final_mat.mat, choice probabilities)
+    features_stuff_newsample_350.mat: the RN50x64 features of the 48 images
+                  from which the published predictions were computed
+The AligNet SigLIP2-B features of the 48 images are extracted here with
+dimpred.extract_features on the cpu (there is no TensorFlow version of
+them). The file has, for the 48 images (stuff48_*): files, features_rn50x64,
+features_alignet, published_rn50x64_36d_ridge, human_similarity, and for each
+model of the 36 dimensions expected_<model> and human_r.<model> (r with the
+2AFC similarity, computed here with the definition written out).
 
 The tests compare dimpred against numbers that do not come from dimpred
 itself, mostly Philipp Kaniuth's published results. This script collects
@@ -92,6 +114,8 @@ import numpy as np
 import scipy.io
 
 # History:
+# 2026/10/26: --materials for the models of the 36 material dimensions;
+#   --add-models gives human_r_48nonref only for the THINGS models
 # 2026/10/04: models with a local kernel; --add-models for alignet_siglip2b_66d_kernel
 # 2026/10/02: description of benchmark_ridge_fits.mat
 # 2026/10/02: AligNet SigLIP2-B features (TensorFlow) for the new default model
@@ -142,11 +166,58 @@ def add_models(names):
     for name in names:
         model = scipy.io.loadmat(os.path.join(MODELS, name + ".mat"), simplify_cells=True)
         fix["expected_" + name] = predict(features_of[model["info"]["network"]], model)
+        if "_36d_" in name:
+            print(f"{name}: expected predictions (material dimensions, no human_r_48nonref)")
+            continue
         human_r[name] = lower_triangle_r(spose_similarity(fix["expected_" + name][:48]), human)
         print(f"{name}: r with human similarity (48nonref) = {human_r[name]:.3f}")
     fix["human_r_48nonref"] = human_r
     scipy.io.savemat(os.path.join(HERE, "reference_data.mat"), fix, do_compression=True)
     print("Updated reference_data.mat")
+
+
+def similarity_2afc(embedding):
+    """Reference 2AFC similarity (slow but simple): P[i, j] = mean over k of exp(e_i.e_j) / (exp(e_i.e_j) +
+    exp(e_i.e_k)), S = (P + P') / 2, diagonal 1."""
+    n = embedding.shape[0]
+    sim = embedding @ embedding.T
+    P = np.zeros((n, n))
+    for i in range(n):
+        for j in range(n):
+            if i != j:
+                k = np.array([k for k in range(n) if k not in (i, j)])
+                P[i, j] = np.mean(1 / (1 + np.exp(sim[i, k] - sim[i, j])))
+    S = (P + P.T) / 2
+    np.fill_diagonal(S, 1)
+    return S
+
+
+def make_materials(dnn_dir, newsample_dir, features_350_file):
+    """materials_data.mat for the models of the 36 material dimensions."""
+    import dimpred
+
+    files = sorted(os.path.basename(f) for f in glob.glob(os.path.join(newsample_dir, "images", "*.jpg")))
+    assert len(files) == 48, f"{len(files)} images in {newsample_dir}/images"
+    fix = dict(stuff48_files=np.array(files, dtype=object).reshape(-1, 1))
+    fix["stuff48_features_rn50x64"] = scipy.io.loadmat(features_350_file)["features"].astype(float)
+    fix["stuff48_features_alignet"] = dimpred.extract_features(
+        [os.path.join(newsample_dir, "images", f) for f in files], network="AligNet SigLIP2-B", device="cpu")
+    fix["stuff48_features_alignet"] = fix["stuff48_features_alignet"].astype(float)
+    fix["stuff48_published_rn50x64_36d_ridge"] = scipy.io.loadmat(
+        os.path.join(dnn_dir, "allpred_newsample.mat"))["allpred"].astype(float)
+    human = scipy.io.loadmat(os.path.join(newsample_dir, "final_mat.mat"))["final_mat"]
+    fix["stuff48_human_similarity"] = human
+    features_of = {"RN50x64": fix["stuff48_features_rn50x64"], "AligNet SigLIP2-B": fix["stuff48_features_alignet"]}
+    human_r = {}
+    for fname in sorted(glob.glob(os.path.join(MODELS, "*_36d_*.mat"))):
+        name = os.path.splitext(os.path.basename(fname))[0]
+        model = scipy.io.loadmat(fname, simplify_cells=True)
+        fix["stuff48_expected_" + name] = predict(features_of[model["info"]["network"]], model)
+        human_r[name] = lower_triangle_r(similarity_2afc(fix["stuff48_expected_" + name]), human)
+        print(f"{name}: r with human similarity (48 STUFF images, 2afc) = {human_r[name]:.3f}")
+    fix["stuff48_human_r"] = human_r
+    scipy.io.savemat(os.path.join(HERE, "materials_data.mat"), fix, do_compression=True)
+    print("Saved materials_data.mat")
 
 
 def extract(files, network):
@@ -166,6 +237,9 @@ def main(argv=None):
         argv = sys.argv[1:]
     if argv and argv[0] == "--add-models":
         add_models(argv[1:])
+        return
+    if argv and argv[0] == "--materials":
+        make_materials(*argv[1:4])
         return
     parser = argparse.ArgumentParser(description="Create the dimpred test fixtures.")
     parser.add_argument("--export", required=True)

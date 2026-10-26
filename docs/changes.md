@@ -1,5 +1,25 @@
 # Changes
 
+## 1.3.0
+
+- Three models of the 36 material dimensions of Schmidt, Hebart, Schmid &
+  Fleming (2025), trained on the 600 STUFF images:
+  `alignet_siglip2b_36d_kernel` (recommended), `alignet_siglip2b_36d_ridge`
+  and `rn50x64_36d_ridge`, the model of the paper rebuilt from its code
+  ([details](models.md#material-dimensions)). The default model does not
+  change.
+- `similarity` (`dimpred_similarity`) has the method `"2afc"`, the
+  similarity of the triplet 2AFC task of the material dimensions
+  ([details](details.md#similarity)).
+- `training/build_material_models.py` builds the material models;
+  `training/data` has the STUFF embedding, its labels, the image names and
+  the settings of the paper's model.
+- `extract_features` and `rise` (`dimpred_extract_features`,
+  `dimpred_rise`) warn once per call if some images are not square. The
+  AligNet models squeeze the longer edge of such images, the CLIP models
+  remove its ends, and all models were trained on square images
+  ([details](details.md#non-square-images)). The predictions do not change.
+
 ## 1.2.0
 
 - The default model is now `alignet_siglip2b_66d_kernel`: the same network

@@ -18,11 +18,14 @@ import os
 import numpy as np
 import pytest
 
-from helpers import (CC0_REORDERED, IMAGES, MODEL_NAMES, MODELS, MODELS_DIR, ORIGINAL_RIDGE_FILE, TOL_HUMAN_R,
-                     TOL_MODEL, assert_close, load_mat, lower_triangle, row_correlations,
-                     spose_similarity_by_definition)
+from helpers import (CC0_REORDERED, IMAGES, MATERIAL_MODEL_NAMES, MODEL_NAMES, MODELS, MODELS_DIR, ORIGINAL_RIDGE_FILE,
+                     THINGS_MODEL_NAMES, TOL_HUMAN_R, TOL_MODEL, assert_close, load_mat, lower_triangle,
+                     row_correlations, spose_similarity_by_definition)
 
 # History:
+# 2026/10/26: the models of the 36 material dimensions have expected
+#   predictions here, but no human_r_48nonref (their human data are in
+#   materials_data.mat, test_materials.py)
 # 2026/10/02: AligNet SigLIP2-B features (features_alignet, cc0_features_alignet)
 # 2026/09/30: checks that the MATLAB tests of the fixtures already had
 #   (unique names, different CC0 features, published = expected predictions,
@@ -106,11 +109,13 @@ def test_human_similarity_is_between_0_and_1(ref):
 def test_human_correlation_is_given_for_each_model(ref):
     human_r = ref["human_r_48nonref"]
     assert isinstance(human_r, dict), "human_r_48nonref should be a struct"
-    missing = [n for n in MODEL_NAMES if n not in human_r]
+    missing = [n for n in THINGS_MODEL_NAMES if n not in human_r]
     assert not missing, f"human_r_48nonref has no value for {missing}"
+    material = [n for n in MATERIAL_MODEL_NAMES if n in human_r]
+    assert not material, f"human_r_48nonref has values for the material models {material} (THINGS images)"
 
 
-@pytest.mark.parametrize("name", MODEL_NAMES)
+@pytest.mark.parametrize("name", THINGS_MODEL_NAMES)
 def test_human_correlation_of_each_model_is_at_least_0_80(ref, name):
     # Each shipped model predicts human similarity at least about as well as
     # the model of the DimPred paper (r = 0.810; the rebuilt CLIP models
@@ -148,8 +153,10 @@ def test_reference_predictions_are_not_mostly_zero(ref, variable):
 
 def test_every_model_file_has_fixture_numbers(ref):
     # when a model is added to dimpred/models, the fixtures have to be updated
+    # (the material models have their human data in materials_data.mat, see test_materials.py)
     names = sorted(f[:-4] for f in os.listdir(MODELS_DIR) if f.endswith(".mat"))
-    missing = [n for n in names if "expected_" + n not in ref or n not in ref["human_r_48nonref"]]
+    missing = [n for n in names if "expected_" + n not in ref
+               or (n not in MATERIAL_MODEL_NAMES and n not in ref["human_r_48nonref"])]
     assert not missing, f"reference_data.mat has no expected_* or human_r_48nonref for the model files {missing}"
 
 
@@ -231,14 +238,14 @@ def test_rows_of_the_networks_agree_for_all_images(ref, other):
 def predicted_similarity(ref_session):
     """SPoSE similarity of the expected predictions for the 48nonref images, per model."""
 
-    return {name: spose_similarity_by_definition(ref_session["expected_" + name][:48]) for name in MODEL_NAMES}
+    return {name: spose_similarity_by_definition(ref_session["expected_" + name][:48]) for name in THINGS_MODEL_NAMES}
 
 
 def r_with_humans(similarity, ref):
     return np.corrcoef(lower_triangle(similarity), lower_triangle(ref["human_similarity_48nonref"]))[0, 1]
 
 
-@pytest.mark.parametrize("name", MODEL_NAMES)
+@pytest.mark.parametrize("name", THINGS_MODEL_NAMES)
 def test_human_correlation_fits_the_expected_predictions(ref, predicted_similarity, name):
     # human_r_48nonref has to be the correlation of the expected predictions
     # (first 48 rows) with the human similarity

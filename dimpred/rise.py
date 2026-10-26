@@ -30,11 +30,12 @@ import time
 
 import numpy as np
 
-from .extract_features import check_images, load_network, read_image
+from .extract_features import check_images, load_network, read_image, warn_non_square
 from .load_model import load_model
 from .predict import predict
 
 # History:
+# 2026/10/26: warning for images that are not square (warn_non_square)
 # 2026/10/02: written for dimpred 1.1.0, from the comparison with the maps
 #   of the DimPred paper (RISE with 6000 masks, an 8 x 8 grid and p = 0.1)
 
@@ -87,7 +88,8 @@ def rise(images, model=None, n_masks=6000, grid=8, p=0.1, normalization="pixel",
     px for RN50x64, 224 px for ViT-B/32), for AligNet the whole image,
     resized to a square (the aspect ratio is not kept). The output view is
     this image at the size of the maps, so that maps can be shown on top of
-    it (see overlay).
+    it (see overlay). If some images are not square, you get a warning (see
+    warn_non_square).
 
     Time: each image and each mask is one pass through the network. With
     6000 masks, this takes about 10 min per image with RN50x64 and less than
@@ -189,6 +191,7 @@ def rise(images, model=None, n_masks=6000, grid=8, p=0.1, normalization="pixel",
     model = load_model(model)
     info = model["info"]
     to_unit, encode = load_network(info["network"], info.get("pretrained", "openai"), device)
+    warn_non_square(images, info["network"], to_unit.square_input)
     import torch  # imported by load_network
     n_dims = model["weights"].shape[1]
 

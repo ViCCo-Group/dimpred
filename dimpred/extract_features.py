@@ -1,10 +1,12 @@
 import os
+import warnings
 
 import numpy as np
 
 from .load_model import load_model
 
 # History:
+# 2026/10/26: warning for images that are not square (warn_non_square)
 # 2026/10/02: the network and its preprocessing in load_network, split into
 #   the image with values 0 to 1 and the normalization with the network, so
 #   that rise can mask the image in between (the features do not change);
@@ -31,6 +33,12 @@ def extract_features(images, model=None, network=None, pretrained="openai", devi
         CLIP networks (open_clip): resize to 224 px (ViT-B/32) or 448 px
             (RN50x64) and center crop, and the features are the output of
             the image encoder (model.encode_image)
+
+    The networks assume square input. AligNet squeezes the longer edge of a
+    non-square image, which changes its proportions; the CLIP networks
+    remove the ends of the longer edge. The models were trained on square
+    images (THINGS), so you get a warning if some images are not square
+    (see warn_non_square).
 
     The network is set by the model (model["info"]["network"]), so pass the
     same model to extract_features and to predict. For OpenAI's CLIP ViT
@@ -97,6 +105,9 @@ def extract_features(images, model=None, network=None, pretrained="openai", devi
     # The network, with its preprocessing in two steps (see load_network)
     to_unit, encode = load_network(network, pretrained, device)
 
+    # Warn if some images are not square
+    warn_non_square(images, network, to_unit.square_input)
+
     # Extract features, batch by batch. torch was imported by load_network.
     import torch
     features = []
@@ -143,6 +154,10 @@ def load_network(network, pretrained="openai", device=None):
                  width, values 0 to 1
         encode:  function, float32 tensor n x 3 x height x width (on the
                  cpu) to the features, float32 array n x n_features
+        to_unit.square_input: how the network makes a non-square image
+                 square: "squeeze" (resized to a square, e.g. AligNet),
+                 "crop" (the central square, e.g. the CLIP networks), or
+                 None (not known, e.g. padding)
 
     Example:
         to_unit, encode = load_network("RN50x64")
@@ -174,7 +189,10 @@ def load_network(network, pretrained="openai", device=None):
     # augmentation for training) and the output of the image encoder.
     if network == alignet.NETWORK:
         net = alignet.load_alignet(device=device)
-        to_unit = alignet.preprocess
+        square_input = "squeeze"
+
+        def to_unit(image):
+            return alignet.preprocess(image)
 
         def normalize(batch):
             return batch
@@ -190,6 +208,7 @@ def load_network(network, pretrained="openai", device=None):
         # Applying its steps one after the other is what Compose does, so the
         # split does not change any value.
         steps = list(getattr(preprocess, "transforms", []))
+        square_input = square_input_of(steps)
         if steps and type(steps[-1]).__name__ == "Normalize":
             normalize = steps[-1]
 
@@ -198,7 +217,8 @@ def load_network(network, pretrained="openai", device=None):
                     image = step(image)
                 return image
         else:
-            to_unit = preprocess
+            def to_unit(image):
+                return preprocess(image)
 
             def normalize(batch):
                 return batch
@@ -210,7 +230,89 @@ def load_network(network, pretrained="openai", device=None):
             batch = normalize(batch).to(device)
             return network_output(batch).float().cpu().numpy()
 
+    to_unit.square_input = square_input
     return to_unit, encode
+
+
+def square_input_of(steps):
+    """
+    square_input = square_input_of(steps)
+
+    How an open_clip preprocessing (its list of torchvision steps) makes a
+    non-square image square: "crop" if it has a center crop (OpenAI's CLIP
+    networks: resize the shorter edge, then take the central square),
+    "squeeze" if it resizes to a given height and width (e.g. SigLIP), and
+    None otherwise (e.g. open_clip's "longest" mode, which pads). We look at
+    the steps themselves and not at the network name, so that this is also
+    right for other networks.
+    """
+
+    names = [type(step).__name__ for step in steps]
+    if "CenterCrop" in names:
+        return "crop"
+    for step in steps:
+        size = getattr(step, "size", None)
+        if type(step).__name__ == "Resize" and isinstance(size, (tuple, list)) and len(size) == 2:
+            return "squeeze"
+    return None
+
+
+# The sides of an image may differ by this fraction of the longer side
+# before we call it not square, so that a difference of a pixel or two does
+# not give a warning
+NON_SQUARE_TOLERANCE = 0.01
+
+# The start of the warning, also used by the MATLAB functions to switch the
+# Python warning off (they give their own warning)
+NON_SQUARE_WARNING = "Not all images are square"
+
+
+def warn_non_square(images, network, square_input):
+    """
+    warn_non_square(images, network, square_input)
+
+    One warning (not one per image) if some images are not square, with
+    their number, the first of them, and what the network does with them:
+    squeeze their longer edge (square_input "squeeze") or remove its ends
+    ("crop"). The models were trained on square images (THINGS), so both
+    can change the predictions. Nothing happens if square_input is None.
+    Only the size in the file header is read, which is fast. A file that
+    cannot be read is skipped here (read_image gives the error later).
+
+    The warning is a UserWarning that starts with "Not all images are
+    square", so it can be switched off with
+        warnings.filterwarnings("ignore", message="Not all images are square")
+
+    Hebartlab, 2026/10/26
+
+    See also: extract_features, rise, load_network
+    """
+
+    if square_input not in ["squeeze", "crop"]:
+        return
+    from PIL import Image  # imported here, as in read_image
+
+    non_square = []
+    for fname in images:
+        try:
+            with Image.open(fname) as image:
+                width, height = image.size
+        except (OSError, SyntaxError):
+            continue
+        if abs(width - height) > NON_SQUARE_TOLERANCE * max(width, height):
+            non_square.append((fname, width, height))
+    if not non_square:
+        return
+
+    fname, width, height = non_square[0]
+    if square_input == "squeeze":
+        what = "squeezes their longer edge, which changes their proportions"
+    else:
+        what = "removes the ends of their longer edge"
+    warnings.warn(f"{NON_SQUARE_WARNING}: {len(non_square)} of {len(images)} images are not (first: {fname}, "
+                  f"{width} x {height}). {network} {what}. The models were trained on square images (THINGS), "
+                  f"so crop or pad your images to square if you can (docs/details.md, Non-square images).",
+                  stacklevel=3)
 
 
 def check_images(images, function):

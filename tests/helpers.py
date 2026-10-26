@@ -21,6 +21,9 @@ import numpy as np
 import scipy.io
 
 # History:
+# 2026/10/26: the models of the 36 material dimensions (STUFF):
+#   THINGS_MODEL_NAMES, MATERIAL_MODEL_NAMES, MATERIALS_FILE and the slow
+#   reference 2AFC similarity
 # 2026/10/04: new default model alignet_siglip2b_66d_kernel (ridge + local
 #   kernel); KERNEL_MODEL_NAMES and LINEAR_MODEL_NAMES
 # 2026/10/02: fixture with the ridge fits of the DimPred benchmark
@@ -38,6 +41,7 @@ FIXTURES = os.path.join(TESTS, "fixtures")
 REFERENCE_FILE = os.path.join(FIXTURES, "reference_data.mat")
 ORIGINAL_RIDGE_FILE = os.path.join(FIXTURES, "philipp_original_ridge_rn50x64_66d.mat")
 BENCHMARK_RIDGE_FILE = os.path.join(FIXTURES, "benchmark_ridge_fits.mat")
+MATERIALS_FILE = os.path.join(FIXTURES, "materials_data.mat")
 IMAGES = os.path.join(FIXTURES, "images")
 MODELS_DIR = os.path.join(REPO, "dimpred", "models")
 MATLAB_CODE = os.path.join(REPO, "matlab")
@@ -50,13 +54,22 @@ ALIGNET = "AligNet SigLIP2-B"  # the network of the default model (not an open_c
 
 # The shipped models (table in README.md and docs/models.md). regression is
 # "ridge" (ridge with the penalty chosen directly), "ridge + kernel" (the
-# ridge plus a local kernel, with the kernel part and the close-pair
-# settings in the file), "fracridge" (fractional ridge of the DimPred paper)
-# or "elastic" (elastic net).
+# ridge plus a local kernel, with the kernel part and, for the THINGS model,
+# the close-pair settings in the file), "fracridge" (fractional ridge of the
+# DimPred paper), "elastic" (elastic net) or "paper" (the kernel ridge
+# regression of the STUFF paper). embedding is "things" (the SPoSE
+# dimensions of the 1854 THINGS concepts) or "materials" (the 36 material
+# dimensions of the 600 STUFF images, Schmidt et al., 2025).
 MODELS = {
+    "alignet_siglip2b_36d_kernel": dict(network="AligNet SigLIP2-B", n_features=768, n_dims=36,
+                                        regression="ridge + kernel", kernel=True, n_train=600, embedding="materials"),
+    "alignet_siglip2b_36d_ridge": dict(network="AligNet SigLIP2-B", n_features=768, n_dims=36, regression="ridge",
+                                       embedding="materials"),
     "alignet_siglip2b_66d_kernel": dict(network=ALIGNET, n_features=768, n_dims=66, regression="ridge + kernel",
                                         kernel=True, n_train=1854),
     "alignet_siglip2b_66d_ridge": dict(network=ALIGNET, n_features=768, n_dims=66, regression="ridge"),
+    "rn50x64_36d_ridge": dict(network="RN50x64", n_features=1024, n_dims=36, regression="paper",
+                              embedding="materials"),
     "rn50x64_49d_ridge": dict(network="RN50x64", n_features=1024, n_dims=49, regression="fracridge"),
     "rn50x64_66d_elastic": dict(network="RN50x64", n_features=1024, n_dims=66, regression="elastic"),
     "rn50x64_66d_ridge": dict(network="RN50x64", n_features=1024, n_dims=66, regression="ridge"),
@@ -65,6 +78,9 @@ MODELS = {
 MODEL_NAMES = sorted(MODELS)
 KERNEL_MODEL_NAMES = [name for name in MODEL_NAMES if MODELS[name].get("kernel")]
 LINEAR_MODEL_NAMES = [name for name in MODEL_NAMES if not MODELS[name].get("kernel")]
+MATERIAL_MODEL_NAMES = [name for name in MODEL_NAMES if MODELS[name].get("embedding") == "materials"]
+THINGS_MODEL_NAMES = [name for name in MODEL_NAMES if name not in MATERIAL_MODEL_NAMES]
+THINGS_KERNEL_MODEL_NAMES = [name for name in KERNEL_MODEL_NAMES if name in THINGS_MODEL_NAMES]
 
 # Variables in reference_data.mat that hold the features of each network
 FEATURES_KEY = {"RN50x64": "features_rn50x64", "ViT-B-32-quickgelu": "features_vitb32", ALIGNET: "features_alignet"}
@@ -225,6 +241,37 @@ def spose_similarity_by_definition(embedding):
                 e_ij, e_ik, e_jk = [math.exp(v - largest) for v in three]
                 probabilities.append(e_ij / (e_ij + e_ik + e_jk))
             similarity[i, j] = sum(probabilities) / len(probabilities)
+    return similarity
+
+
+def similarity_2afc_by_definition(embedding):
+    """Slow reference 2AFC similarity: the definition written out with three loops.
+
+    P[i, j] is the mean over all k not in {i, j} of
+        exp(e_i.e_j) / (exp(e_i.e_j) + exp(e_i.e_k))
+    the probability that j is chosen over k as more similar to the reference
+    i, and S[i, j] = (P[i, j] + P[j, i]) / 2, S[i, i] = 1. The larger of the
+    two dot products is subtracted before exp, so that exp cannot overflow.
+    """
+
+    embedding = np.asarray(embedding, dtype=float)
+    n = embedding.shape[0]
+    dots = embedding @ embedding.T
+    P = np.zeros((n, n))
+    for i in range(n):
+        for j in range(n):
+            if i == j:
+                continue
+            probabilities = []
+            for k in range(n):
+                if k == i or k == j:
+                    continue
+                larger = max(dots[i, j], dots[i, k])
+                e_ij, e_ik = math.exp(dots[i, j] - larger), math.exp(dots[i, k] - larger)
+                probabilities.append(e_ij / (e_ij + e_ik))
+            P[i, j] = sum(probabilities) / len(probabilities)
+    similarity = (P + P.T) / 2
+    np.fill_diagonal(similarity, 1)
     return similarity
 
 

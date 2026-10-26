@@ -1,8 +1,11 @@
 import numpy as np
+from scipy.special import expit
 
 from .load_model import load_model
 
 # History:
+# 2026/10/26: method "2afc", the similarity of the triplet 2AFC task (the
+#   models of the 36 material dimensions)
 # 2026/10/04: features and model: the close-pair term of the default model
 # 2026/09/30: written for the first release of the package, following
 #   embedding2sim_stable_fast2.m, but vectorized over two objects
@@ -26,7 +29,7 @@ def similarity(embedding, method="spose", features=None, model=None):
 
     where cos is the cosine of the features. The weight and the threshold
     come from the model (default: dimpred.DEFAULT_MODEL; the threshold is the
-    90th percentile of the cosines between its 1854 training images, so only
+    90th percentile of the cosines between its training images, so only
     the closest pairs change). This is the default method of dimpred since
     version 1.2.0: on the human similarity benchmark it predicts human
     similarity much better than the dimensions alone, above all within a
@@ -51,17 +54,36 @@ def similarity(embedding, method="spose", features=None, model=None):
     not change the probabilities, but exp cannot overflow for large dot
     products.
 
+    With method "2afc", the similarity comes from the triplet 2AFC task of
+    the material dimensions (the models ..._36d_..., Schmidt et al., 2025),
+    in which people choose which of two images is more similar to a
+    reference image. P[i, j] is the probability that j is chosen over a
+    random third object k as more similar to the reference i:
+
+        P[i, j] = mean over all k other than i and j of
+                  exp(e_i.e_j) / (exp(e_i.e_j) + exp(e_i.e_k))
+
+    and S[i, j] = (P[i, j] + P[j, i]) / 2, i.e. both objects count as the
+    reference, as in the human similarity matrices of this task. The
+    diagonal is set to 1, and the mean of all values off the diagonal is
+    always 1/2. (The code of the paper, embedding2sim_pair.m, used only
+    P[i, j] for i < j; averaging both fits the human data better.) The
+    probabilities are computed as 1 / (1 + exp(e_i.e_k - e_i.e_j)), which
+    cannot overflow.
+
     With method "dot", S is the matrix of dot products, embedding @ embedding.T
     (with features: D above).
 
     Computing time: the spose similarity loops over the objects i and
     computes all triplets (i, j, k) with j > i at once, with a matrix of up
-    to n x n values in each step. The time grows with n^3, i.e. twice as many
-    objects take about 8 times as long (a few seconds for 1000 objects).
+    to n x n values in each step, the 2afc similarity all triplets with i as
+    the reference. The time grows with n^3, i.e. twice as many objects take
+    about 8 times as long (a few seconds for 1000 objects).
 
     Input:
         embedding: n_objects x n_dims (one row per object), all values finite
-        method:    "spose" (default) or "dot"; None also gives "spose"
+        method:    "spose" (default), "2afc" (for the material dimensions) or
+                   "dot"; None also gives "spose"
         features:  optional, the network features of the objects,
                    n_objects x n_features (the input of predict), for the
                    close-pair term
@@ -78,6 +100,11 @@ def similarity(embedding, method="spose", features=None, model=None):
         S = dimpred.similarity(embedding, features=features)   # with the close pairs (recommended)
         S_dims = dimpred.similarity(embedding)                 # from the dimensions alone
 
+        # the 36 material dimensions
+        features = dimpred.extract_features(dimpred.find_images("my_material_images"), "alignet_siglip2b_36d_kernel")
+        embedding = dimpred.predict(features, "alignet_siglip2b_36d_kernel")
+        S = dimpred.similarity(embedding, method="2afc")
+
     Hebartlab, 2026/09/30
 
     See also: predict
@@ -90,8 +117,8 @@ def similarity(embedding, method="spose", features=None, model=None):
                          f"shape {embedding.shape}.")
     if method is None:
         method = "spose"  # as [] in MATLAB
-    if method.lower() not in ["spose", "dot"]:
-        raise ValueError(f"Unknown method '{method}'. Use 'spose' or 'dot'.")
+    if method.lower() not in ["spose", "2afc", "dot"]:
+        raise ValueError(f"Unknown method '{method}'. Use 'spose', '2afc' or 'dot'.")
     method = method.lower()
     not_finite = np.flatnonzero(~np.all(np.isfinite(embedding), axis=1))
     if not_finite.size > 0:
@@ -109,8 +136,10 @@ def similarity(embedding, method="spose", features=None, model=None):
 
     n = embedding.shape[0]
     if n < 3:
-        raise ValueError(f"The SPoSE similarity (method 'spose') needs at least 3 objects (it is defined by "
+        raise ValueError(f"The SPoSE similarity (method '{method}') needs at least 3 objects (it is defined by "
                          f"triplets of objects), but the embedding has {n}.")
+    if method == "2afc":
+        return similarity_2afc(dots)
 
     # Most of the time goes into exp. If the dot products lie within a range
     # of 700, we compute exp once for all pairs, after subtracting the largest
@@ -148,6 +177,28 @@ def similarity(embedding, method="spose", features=None, model=None):
         # mean across the n - 2 third objects
         S[i, j] = p.sum(axis=1) / (n - 2)
     S = S + S.T
+    np.fill_diagonal(S, 1)
+    return S
+
+
+def similarity_2afc(dots):
+    """The similarity of the triplet 2AFC task from the dot products (method "2afc" of similarity)."""
+
+    # For each reference i, the probabilities of all triplets (i, j, k) at
+    # once: j in the rows, k in the columns. expit(x) = 1 / (1 + exp(-x))
+    # cannot overflow.
+    n = dots.shape[0]
+    P = np.zeros((n, n))
+    for i in range(n):
+        p = expit(dots[i][:, np.newaxis] - dots[i][np.newaxis, :])
+
+        # j and k have to be different from i and from each other
+        p[:, i] = 0
+        np.fill_diagonal(p, 0)
+
+        # mean across the n - 2 third objects (row i is not used)
+        P[i] = p.sum(axis=1) / (n - 2)
+    S = (P + P.T) / 2
     np.fill_diagonal(S, 1)
     return S
 

@@ -59,6 +59,7 @@ Examples:
     python -m dimpred cat.jpg dog.jpg --model rn50x64_49d_ridge --out predictions.mat
     python -m dimpred --features my_features.mat --out predictions.csv
     python -m dimpred --rise cat.jpg --model rn50x64_66d_ridge --n-masks 2000 --png cat_maps
+    python -m dimpred my_material_images --model alignet_siglip2b_36d_kernel --out materials.csv
 
 Hebartlab, 2026/09/30
 

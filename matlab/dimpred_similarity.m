@@ -12,7 +12,7 @@
 %
 % where cos is the cosine of the features. The weight and the threshold
 % come from the model (default: the default model; the threshold is the
-% 90th percentile of the cosines between its 1854 training images, so only
+% 90th percentile of the cosines between its training images, so only
 % the closest pairs change). This is the default method of dimpred since
 % version 1.2.0. Without features, S comes from the embedding alone.
 %
@@ -34,17 +34,36 @@
 % not change the probabilities, but exp cannot overflow for large dot
 % products.
 %
+% With method '2afc', the similarity comes from the triplet 2AFC task of
+% the material dimensions (the models ..._36d_..., Schmidt et al., 2025),
+% in which people choose which of two images is more similar to a
+% reference image. P(i,j) is the probability that j is chosen over a
+% random third object k as more similar to the reference i:
+%
+%   P(i,j) = mean over all k other than i and j of
+%            exp(e_i*e_j') / (exp(e_i*e_j') + exp(e_i*e_k'))
+%
+% and S(i,j) = (P(i,j) + P(j,i)) / 2, i.e. both objects count as the
+% reference, as in the human similarity matrices of this task. The
+% diagonal is set to 1, and the mean of all values off the diagonal is
+% always 1/2. (The code of the paper, embedding2sim_pair.m, used only
+% P(i,j) for i < j; averaging both fits the human data better.) The
+% probabilities are computed as 1 / (1 + exp(e_i*e_k' - e_i*e_j')), which
+% cannot give NaN.
+%
 % With method 'dot', S is the matrix of dot products, embedding * embedding'
 % (with features: D above).
 %
 % Computing time: the spose similarity loops over the objects i and
 % computes all triplets (i,j,k) with j > i at once, with a matrix of up to
-% n x n values in each step. The time grows with n^3, i.e. twice as many
-% objects take about 8 times as long (a few seconds for 1000 objects).
+% n x n values in each step, the 2afc similarity all triplets with i as
+% the reference. The time grows with n^3, i.e. twice as many objects take
+% about 8 times as long (a few seconds for 1000 objects).
 %
 % Input:
 %   embedding: n_objects x n_dims (one row per object), all values finite
-%   method:    'spose' (default) or 'dot'; [] also gives 'spose'
+%   method:    'spose' (default), '2afc' (for the material dimensions) or
+%              'dot'; [] also gives 'spose'
 %   features:  optional, the network features of the objects,
 %              n_objects x n_features (the input of dimpred_predict), for
 %              the close-pair term ([] or omitted: none)
@@ -60,11 +79,18 @@
 %   S = dimpred_similarity(embedding, [], features);  % with the close pairs (recommended)
 %   S_dims = dimpred_similarity(embedding);           % from the dimensions alone
 %
+%   % the 36 material dimensions
+%   features = dimpred_extract_features(dimpred_find_images('my_material_images'), 'alignet_siglip2b_36d_kernel');
+%   embedding = dimpred_predict(features, 'alignet_siglip2b_36d_kernel');
+%   S = dimpred_similarity(embedding, '2afc');
+%
 % Hebartlab, 2026/09/30
 %
 % See also DIMPRED_PREDICT
 
 % History:
+% 2026/10/26: method '2afc', the similarity of the triplet 2AFC task (the
+%   models of the 36 material dimensions)
 % 2026/10/04: features and model: the close-pair term of the default model
 % 2026/09/30: NaN and Inf give an error, as in Python
 % 2026/09/30: written for the first release of the package, following
@@ -86,8 +112,8 @@ if ~isempty(not_finite)
         'Please remove these objects or check their features.'], numel(not_finite), size(embedding, 1), not_finite(1))
 end
 embedding = double(embedding);
-if ~any(strcmpi(method, {'spose', 'dot'}))
-    error('dimpred:unknownMethod', 'Unknown method ''%s''. Use ''spose'' or ''dot''.', method)
+if ~any(strcmpi(method, {'spose', '2afc', 'dot'}))
+    error('dimpred:unknownMethod', 'Unknown method ''%s''. Use ''spose'', ''2afc'' or ''dot''.', method)
 end
 
 % The dot products of the embedding, with features plus the close-pair term
@@ -102,6 +128,8 @@ switch lower(method)
         S = dots;
     case 'spose'
         S = spose_similarity(dots);
+    case '2afc'
+        S = similarity_2afc(dots);
 end
 
 
@@ -135,6 +163,34 @@ if ~all(isfinite(features(:))) || any(norms == 0)
 end
 unit = features ./ norms;
 term = model.close_pairs_weight * max(0, unit * unit' - model.close_pairs_threshold);
+
+
+function S = similarity_2afc(dots)
+% The similarity of the triplet 2AFC task from the dot products (method '2afc')
+
+n_objects = size(dots, 1);
+if n_objects < 3
+    error('dimpred:tooFewObjects', ['The SPoSE similarity (method ''2afc'') needs at least 3 objects (it is ' ...
+        'defined by triplets of objects), but the embedding has %i.'], n_objects)
+end
+
+% For each reference i, the probabilities of all triplets (i,j,k) at once:
+% j in the rows, k in the columns. 1 / (1 + exp(x)) is 0 for very large x
+% (exp gives Inf), so it cannot give NaN.
+P = zeros(n_objects);
+for i = 1:n_objects
+    d = dots(i, :);
+    p = 1 ./ (1 + exp(d - d')); % p(j,k) = 1 / (1 + exp(d(k) - d(j)))
+
+    % j and k have to be different from i and from each other
+    p(:, i) = 0;
+    p(1:n_objects+1:end) = 0;
+
+    % mean across the n - 2 third objects (row i is not used)
+    P(i, :) = sum(p, 2)' / (n_objects - 2);
+end
+S = (P + P') / 2;
+S(1:n_objects+1:end) = 1; % diagonal
 
 
 function S = spose_similarity(dots)

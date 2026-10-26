@@ -29,7 +29,7 @@ Contents:
 | `dimpred.find_images(folder)` | `files = dimpred_find_images(folder)` | image files directly in a folder, sorted by name, full paths |
 | `dimpred.extract_features(images, model=None, network=None, pretrained="openai", device=None, batch_size=32)` | `[features, files] = dimpred_extract_features(images, model, cfg)` | network features of image files |
 | `dimpred.predict(features, model=None)` | `embedding = dimpred_predict(features, model)` | predicted dimension values |
-| `dimpred.similarity(embedding, method="spose", features=None, model=None)` | `S = dimpred_similarity(embedding, method, features, model)` | predicted similarity, `"spose"` or `"dot"`; with the features also the close pairs |
+| `dimpred.similarity(embedding, method="spose", features=None, model=None)` | `S = dimpred_similarity(embedding, method, features, model)` | predicted similarity, `"spose"`, `"2afc"` (material dimensions) or `"dot"`; with the features also the close pairs |
 | `dimpred.rise(images, model=None, n_masks=6000, ...)` | `result = dimpred_rise(images, model, cfg)` | heatmaps of the predicted dimensions (RISE) |
 
 The Python and MATLAB functions take the same arguments, except that the
@@ -44,16 +44,16 @@ the close pairs, see [Model files](#model-files)).
 
 ## Images and limitations
 
-The models were trained on the 1854 THINGS reference images, photographs of
-single objects, one for each object concept, and tested on the image sets in
-[models.md](models.md#how-well-they-predict-human-similarity). Some things to
-keep in mind:
+The object models were trained on the 1854 THINGS reference images,
+photographs of single objects, one for each object concept, and tested on the
+image sets in [models.md](models.md#how-well-they-predict-human-similarity).
+The material models (`..._36d_...`) were trained on the 600 STUFF images,
+close-up photos of materials ([models.md](models.md#material-dimensions)).
+Some things to keep in mind:
 
-- Photos of single objects, as in THINGS, work best.
-- The default model resizes the whole image to a square, so the aspect ratio
-  of a non-square image is not kept. The CLIP models scale the image and crop
-  the central square, so the network does not see the parts outside it (see
-  [Feature extraction](#feature-extraction)).
+- Photos of single objects, as in THINGS, work best (for the material
+  models, close-up photos of materials, as in STUFF).
+- Non-square images: see [below](#non-square-images).
 - Images are converted to RGB, which drops the alpha channel. Transparent
   areas of a PNG then get the colors stored there, often black. Put such
   images on a background first.
@@ -65,6 +65,24 @@ keep in mind:
   [Similarity](#similarity)).
 - The values of 49d and 66d models cannot be mixed, so use the same model for
   all images you want to compare.
+
+### Non-square images
+
+The networks assume square input. The AligNet models (`alignet_*`) squeeze
+the longer edge, which changes the proportions. The CLIP models
+(`rn50x64_*`, `vitb32_*`) remove the ends of the longer edge. All models were
+trained on square images (THINGS), so crop or pad your images to square if
+you can (the exact preprocessing is in
+[Feature extraction](#feature-extraction)).
+
+`extract_features` and `rise` give one warning per call if some images are
+not square (sides that differ by more than 1% of the longer side): how many,
+the first of them, and what the network does with them. Only the size in the
+file header is read. In Python, the warning is a `UserWarning` and can be
+switched off with
+`warnings.filterwarnings("ignore", message="Not all images are square")`; in
+MATLAB, its id is `dimpred:nonSquare`
+(`warning('off', 'dimpred:nonSquare')`).
 
 ## How the predictions are computed
 
@@ -84,13 +102,16 @@ embedding = np.maximum(z @ model["weights"] + model["target_mean"], 0)
 - `features` (images x features) are the features of the network of the
   model (see [Feature extraction](#feature-extraction)).
 - `feature_mean` and `feature_scale` are the mean and standard deviation of
-  the features of the 1854 training images. New features are z-scored with
-  these and not with the statistics of your own images, so the prediction of
-  an image does not depend on which other images you pass.
+  the features of the training images (the 1854 THINGS reference images, or
+  the 600 STUFF images for the material models). New features are z-scored
+  with these and not with the statistics of your own images, so the
+  prediction of an image does not depend on which other images you pass.
 - `weights` (features x dims) hold one regression per dimension.
-- `target_mean` is the mean of each dimension across the 1854 training
-  images. The regressions were fit on centered dimension values, so the mean
-  has to be added back.
+- `target_mean` is the mean of each dimension across the training images.
+  The regressions were fit on centered dimension values, so the mean has to
+  be added back. (In `rn50x64_36d_ridge`, the model of the STUFF paper,
+  weights and target_mean include the scale factor of each dimension of the
+  paper, see [training/README.md](../training/README.md#the-material-dimensions-130).)
 - Values below 0 are set to 0, because SPoSE dimensions are non-negative.
 
 **The local kernel (default model since 1.2.0).** `alignet_siglip2b_66d_kernel`
@@ -133,7 +154,7 @@ can also be used without this package, with MATLAB's `load` or with
 | variable | size | meaning |
 |---|---|---|
 | `weights` | n_features x n_dims | regression weights |
-| `feature_mean`, `feature_scale` | 1 x n_features | mean and std of the features of the 1854 training images |
+| `feature_mean`, `feature_scale` | 1 x n_features | mean and std of the features of the training images |
 | `target_mean` | 1 x n_dims | mean of each dimension in the training images |
 | `labels` | n_dims x 1 cell | names of the dimensions |
 | `info` | struct | the text fields name, network, pretrained, layer, preprocessing, embedding, regression, training_images, source, note and created, and the numbers n_features and n_dims |
@@ -191,6 +212,29 @@ within the five Peterson categories 0.621 instead of 0.470. This is the
 recommended way to predict similarity. Without the features, `similarity`
 works as before.
 
+**The 2AFC similarity of the material dimensions (since 1.3.0).** The
+material dimensions (models `..._36d_...`) come from a triplet 2AFC task:
+people see a reference image and two others and choose which of the two is
+more similar to the reference. `similarity(embedding, method="2afc")`
+(MATLAB: `dimpred_similarity(embedding, '2afc')`) gives the probability of
+this choice, averaged over all third images k and over both images as the
+reference:
+
+```
+P[i, j] = mean over all k not in {i, j} of exp(e_i.e_j) / (exp(e_i.e_j) + exp(e_i.e_k))
+S[i, j] = (P[i, j] + P[j, i]) / 2
+```
+
+with `S[i, i] = 1`. The human similarity matrices of this task pool both
+references in the same way. The code of the paper (`embedding2sim_pair.m`)
+used only `P[i, j]` for i < j; averaging both fits the human data better
+(the human embedding and the 60 fully sampled images: r = 0.943 instead of
+0.898). The mean of all values off the diagonal is exactly 1/2. The
+material kernel model has no close pairs, so `features` give an error with
+it. For renderings that vary only in reflectance (one shape, different
+materials), the Euclidean distance between the predicted dimensions worked
+better ([models.md](models.md#material-dimensions)).
+
 `similarity(embedding, "dot")` (MATLAB: `dimpred_similarity(embedding, 'dot')`)
 gives the plain dot product `embedding @ embedding.T` (with features: `D`
 above), which does not depend on the other images. In the benchmarks, Kriegeskorte-92 and Cichy-118 were
@@ -199,8 +243,8 @@ you can compute with `scipy.spatial.distance.pdist` in Python or `pdist` in
 MATLAB (Statistics and Machine Learning Toolbox).
 
 The computing time of the SPoSE similarity grows with the cube of the number
-of images: a few seconds for 1000 images, about 1000 times as long for 10
-times as many. For many thousands of images, use `"dot"`, or compute the
+of images: a few seconds for 1000 images (about 7 s with `"2afc"`), about
+1000 times as long for 10 times as many. For many thousands of images, use `"dot"`, or compute the
 similarity for subsets (the values then depend on the subset).
 
 ## Feature extraction
@@ -441,6 +485,13 @@ What the tests check, in short:
 - the command line tool, the package without torch, the MATLAB functions
   against the same numbers and against the Python functions
 - the training code ([training/README.md](../training/README.md#tests-of-the-training-code))
+- the material models (`test_materials.py`, `test_dimpred_materials.m`):
+  `rn50x64_36d_ridge` gives the published predictions of the STUFF paper for
+  its 48 out-of-sample images (and their published r = 0.79 with the paper's
+  similarity), the correlation of all three models with the human similarity
+  of these images, the 2afc similarity against its definition, and (slow,
+  with the cached features of the 600 images in `DIMPRED_STUFF_FEATURES`)
+  that `training/build_material_models.py` gives the shipped files
 
 The fixtures are in `tests/fixtures`:
 
@@ -456,6 +507,10 @@ The fixtures are in `tests/fixtures`:
 - `philipp_original_ridge_rn50x64_66d.mat`: the weights and selected
   fractions of the original training code for the fractional ridge of
   RN50x64 and the 66d embedding
+- `materials_data.mat`: for the 48 out-of-sample images of the STUFF paper,
+  the RN50x64 features from which the paper computed its predictions, the
+  AligNet features, the published predictions, the human similarity, and the
+  expected predictions and human correlation of each material model
 
 `tests/fixtures/make_fixtures.py` documents how they were made. It needs data
 that are not part of the repository and only has to be run again if the
@@ -473,7 +528,8 @@ dimpred/            Python package
 matlab/             MATLAB version (dimpred_list_models.m, dimpred_load_model.m, ..., dimpred_rise.m)
 docs/               these pages
 training/           the training code of the DimPred paper (fit.py, call.py, environment.yml),
-                    build_models.py, the training data (data/) and the AligNet conversion (alignet/)
+                    build_models.py, build_material_models.py, the training data (data/) and the
+                    AligNet conversion (alignet/)
 tests/              pytest tests, MATLAB tests (tests/matlab) and fixtures (tests/fixtures)
 pyproject.toml, README.md, LICENSE
 ```

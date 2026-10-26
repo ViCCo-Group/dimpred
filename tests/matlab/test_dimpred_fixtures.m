@@ -30,6 +30,9 @@
 % See also RUN_DIMPRED_TESTS
 
 % History:
+% 2026/10/26: the models of the 36 material dimensions have expected
+%   predictions but no human_r_48nonref (their human data are in
+%   materials_data.mat, test_dimpred_materials.m)
 % 2026/10/04: the model alignet_siglip2b_66d_kernel
 % 2026/10/02: %#ok for iscellstr, which checks for cell arrays on purpose
 % 2026/10/02: AligNet SigLIP2-B features and the model alignet_siglip2b_66d_ridge
@@ -80,6 +83,9 @@ expected = {
     'expected_vitb32_66d_elastic',     [168 66]
     'expected_alignet_siglip2b_66d_ridge', [168 66]
     'expected_alignet_siglip2b_66d_kernel', [168 66]
+    'expected_alignet_siglip2b_36d_kernel', [168 36]
+    'expected_alignet_siglip2b_36d_ridge', [168 36]
+    'expected_rn50x64_36d_ridge',      [168 36]
     'human_similarity_48nonref',       [48 48]
     'human_r_48nonref',                [1 1]
     'cc0_files',                       [3 1]
@@ -146,9 +152,10 @@ end
 %% Checks of the model files
 
 function test_every_model_file_has_fixture_numbers(testCase)
-% Each model file in dimpred/models needs expected predictions and a
-% correlation with human similarity here. When a model is added, the
-% fixtures and the model lists in the test files have to be updated.
+% Each model file in dimpred/models needs expected predictions and (the
+% THINGS models) a correlation with human similarity here. When a model is
+% added, the fixtures and the model lists in the test files have to be
+% updated.
 ref = testCase.TestData.ref;
 model_files = dir(fullfile(testCase.TestData.repo, 'dimpred', 'models', '*.mat'));
 testCase.assertNotEmpty(model_files, 'No model files found in dimpred/models');
@@ -156,6 +163,9 @@ for i_model = 1:numel(model_files)
     [~, name] = fileparts(model_files(i_model).name);
     testCase.verifyTrue(isfield(ref, ['expected_' name]), ...
         sprintf('reference_data.mat has no expected_%s for the model file %s', name, model_files(i_model).name));
+    if contains(name, '_36d_')
+        continue % the material models: test_dimpred_materials.m
+    end
     testCase.verifyTrue(isfield(ref.human_r_48nonref, name), ...
         sprintf('human_r_48nonref has no value for the model file %s', model_files(i_model).name));
 end

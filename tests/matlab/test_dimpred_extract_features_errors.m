@@ -43,6 +43,7 @@
 %   RUN_DIMPRED_TESTS
 
 % History:
+% 2026/10/26: warning for images that are not square
 % 2026/10/02: after review: model structs, the length of the command line
 %   in bytes, the fake Python copies the model file
 % 2026/09/30: after the second review: many images with several Python runs
@@ -287,6 +288,61 @@ testCase.verifyLessThan(n_given, n_images, sprintf(['The first Python run got al
 end
 
 
+%% Images that are not square (with the fake Python, which fails after the warning)
+
+function test_non_square_images_give_one_warning(testCase)
+import matlab.unittest.constraints.IssuesWarnings
+fake = make_fake_python(testCase, 'fake');
+images = make_sized_images(testCase, {'square.png'; 'wide.png'; 'tall.png'}, [40 40; 30 40; 40 30]);
+cfg.python = fake.python;
+lastwarn('');
+testCase.verifyThat(@() error_of(@() dimpred_extract_features(images, 'vitb32_66d_elastic', cfg)), ...
+    IssuesWarnings({'dimpred:nonSquare'}, 'RespectingCount', true), ...
+    'Non-square images should give one warning dimpred:nonSquare for all images');
+message = lastwarn;
+testCase.verifySubstring(message, 'Not all images are square: 2 of 3 images');
+testCase.verifySubstring(message, 'wide.png, 40 x 30');
+testCase.verifySubstring(message, 'removes the ends of their longer edge');
+end
+
+function test_non_square_warning_says_alignet_squeezes(testCase)
+fake = make_fake_python(testCase, 'fake');
+images = make_sized_images(testCase, {'wide.png'}, [30 40]);
+cfg.python = fake.python;
+lastwarn('');
+warning_state = warning('off', 'dimpred:nonSquare');
+testCase.addTeardown(@warning, warning_state);
+error_of(@() dimpred_extract_features(images, 'alignet_siglip2b_66d_kernel', cfg));
+[message, id] = lastwarn;
+testCase.verifyEqual(id, 'dimpred:nonSquare');
+testCase.verifySubstring(message, 'AligNet SigLIP2-B squeezes their longer edge');
+end
+
+function test_square_images_give_no_warning(testCase)
+import matlab.unittest.constraints.IssuesNoWarnings
+fake = make_fake_python(testCase, 'fake');
+images = make_sized_images(testCase, {'a.png'; 'b.png'}, [40 40; 200 199]);
+cfg.python = fake.python;
+testCase.verifyThat(@() error_of(@() dimpred_extract_features(images, 'vitb32_66d_elastic', cfg)), IssuesNoWarnings, ...
+    'Square images (sides within 1%) should give no warning');
+end
+
+function test_python_warning_is_switched_off(testCase)
+% MATLAB gives the warning itself, so Python's warning is switched off
+fake = make_fake_python(testCase, 'fake');
+images = make_sized_images(testCase, {'wide.png'}, [30 40]);
+cfg.python = fake.python;
+warning_state = warning('off', 'dimpred:nonSquare');
+testCase.addTeardown(@warning, warning_state);
+error_of(@() dimpred_extract_features(images, 'vitb32_66d_elastic', cfg));
+calls = recorded_calls(fake);
+testCase.assertNotEmpty(calls, 'Python was not called');
+call = calls{1};
+i_w = find(strcmp(call, '-W'), 1);
+testCase.assertNotEmpty(i_w, 'Python should get -W to switch its non-square warning off');
+testCase.verifyEqual(call{i_w + 1}, 'ignore:Not all images are square');
+end
+
 %% Helpers
 
 function fake = make_fake_python(testCase, folder_name)
@@ -332,7 +388,7 @@ fid = fopen(script, 'w');
 testCase.assertGreaterThan(fid, 0, sprintf('Could not create %s', script));
 fprintf(fid, 'import sys\n');
 fprintf(fid, 'import scipy.io\n');
-fprintf(fid, 'args = sys.argv[3:]  # the arguments after -m dimpred\n');
+fprintf(fid, 'args = sys.argv[sys.argv.index("-m") + 2:]  # the arguments after -m dimpred\n');
 fprintf(fid, 'images = []\n');
 fprintf(fid, 'for arg in args:\n');
 fprintf(fid, '    if arg.startswith("--"):\n');
@@ -448,5 +504,15 @@ err = [];
 try
     f();
 catch err
+end
+end
+
+function images = make_sized_images(testCase, names, sizes)
+% Gray PNG images of the given names and sizes (one row per image: height,
+% width) in a new temporary folder, as a cell column
+folder = make_temp_folder(testCase);
+images = fullfile(folder, names(:));
+for i_image = 1:numel(images)
+    imwrite(repmat(uint8(128), sizes(i_image, 1), sizes(i_image, 2), 3), images{i_image});
 end
 end

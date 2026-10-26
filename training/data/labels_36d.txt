@@ -1,0 +1,36 @@
+mineral
+wood
+metallic
+fabric
+white
+grainy
+crystalline
+fibrous
+cloudy
+small
+beige, tan color
+viscous
+black
+brick
+swirly
+maroon
+lines, long, vertical, tubular
+mesh
+yellow
+multi-colored
+thin
+bulbous
+green
+blue
+shell, bone
+gemstone
+sheet
+hair
+spongy
+golden, shiny
+red
+round
+cream color
+bumpy
+hot
+turquoise
