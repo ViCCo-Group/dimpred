@@ -2,7 +2,8 @@
 %
 % Predict the values of the SPoSE dimensions of images from their network
 % features. The features are z-scored with the mean and std of the
-% features of the 1854 training images, multiplied with the regression
+% features of the training images (1854 THINGS images, or 600 STUFF images
+% for the material models), multiplied with the regression
 % weights, and the mean of each dimension in the training images is added.
 % Negative values are set to 0, because SPoSE dimensions are non-negative:
 %
@@ -51,6 +52,7 @@
 % See also DIMPRED_LOAD_MODEL, DIMPRED_EXTRACT_FEATURES, DIMPRED_SIMILARITY
 
 % History:
+% 2026/10/26: help text for the models of the 36 material dimensions
 % 2026/10/04: models with a local kernel (the default model alignet_siglip2b_66d_kernel)
 % 2026/10/02: new default model alignet_siglip2b_66d_ridge (help text)
 % 2026/09/30: NaN and Inf give an error, as in Python

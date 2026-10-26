@@ -34,6 +34,7 @@
 % See also DIMPRED_PREDICT, DIMPRED_LOAD_MODEL, RUN_DIMPRED_TESTS
 
 % History:
+% 2026/10/26: the models of the 36 material dimensions
 % 2026/10/04: new default model alignet_siglip2b_66d_kernel; tests of the kernel part
 % 2026/10/02: new default model alignet_siglip2b_66d_ridge (768 AligNet features)
 % 2026/09/30: NaN and Inf give an error, as in Python
@@ -118,7 +119,8 @@ function test_feature_mean_gives_target_mean(testCase)
 % average value of each dimension. This fails if target_mean is not added,
 % the bug of earlier unofficial wrappers. target_mean is > 0, so clipping
 % at 0 plays no role here.
-names = setdiff(shipped_models(), {'alignet_siglip2b_66d_kernel'}); % the kernel part adds to the linear part
+% the kernel part adds to the linear part
+names = setdiff(shipped_models(), {'alignet_siglip2b_36d_kernel', 'alignet_siglip2b_66d_kernel'});
 for i_model = 1:numel(names)
     model = dimpred_load_model(names{i_model});
     testCase.verifyEqual(dimpred_predict(model.feature_mean, model), model.target_mean, 'AbsTol', 1e-12, ...
@@ -331,8 +333,9 @@ end
 function names = shipped_models()
 % Names of the shipped models, sorted alphabetically (same list in
 % test_dimpred_load_model.m and test_dimpred_fixtures.m)
-names = {'alignet_siglip2b_66d_kernel'; 'alignet_siglip2b_66d_ridge'; 'rn50x64_49d_ridge'; ...
-    'rn50x64_66d_elastic'; 'rn50x64_66d_ridge'; 'vitb32_66d_elastic'};
+names = {'alignet_siglip2b_36d_kernel'; 'alignet_siglip2b_36d_ridge'; 'alignet_siglip2b_66d_kernel'; ...
+    'alignet_siglip2b_66d_ridge'; 'rn50x64_36d_ridge'; 'rn50x64_49d_ridge'; 'rn50x64_66d_elastic'; ...
+    'rn50x64_66d_ridge'; 'vitb32_66d_elastic'};
 end
 
 function features = features_for_model(ref, name)

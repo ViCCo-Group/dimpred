@@ -11,6 +11,7 @@ Contents:
 [Reproducing the DimPred paper](#reproducing-the-dimpred-paper) |
 [The ridge regression of 1.1.0](#the-ridge-regression-of-110) |
 [The ridge plus a local kernel (1.2.0)](#the-ridge-plus-a-local-kernel-120) |
+[The material dimensions (1.3.0)](#the-material-dimensions-130) |
 [Rebuilding the shipped models](#rebuilding-the-shipped-models) |
 [Feature extraction](#feature-extraction) |
 [training/data](#trainingdata) |
@@ -134,6 +135,60 @@ cached AligNet features of the 1854 images of the DimPred benchmark; its
 feature mean and std agree with those of `alignet_siglip2b_66d_ridge` within
 3e-7.
 
+## The material dimensions (1.3.0)
+
+The models `alignet_siglip2b_36d_kernel`, `alignet_siglip2b_36d_ridge` and
+`rn50x64_36d_ridge` predict the 36 material dimensions of Schmidt, Hebart,
+Schmid & Fleming (2025, PNAS), the SPoSE embedding of the 600 STUFF images
+(200 materials x 3 images; images: https://osf.io/myutc, triplets and
+embedding: https://osf.io/5gr73). `build_material_models.py` builds them:
+
+```
+cd training
+python build_material_models.py --images <folder with the 600 STUFF images> --features <cache folder>
+```
+
+The images are found by their number (`0001.jpg` to `0600.jpg`) anywhere
+below `--images`, e.g. the folder of `STUFF_dataset_600_images.zip`. The
+features are cached as `features_stuff600_<network>.npy`.
+
+- **AligNet models.** One ridge regression per dimension on the z-scored
+  features divided by the square root of their number, with the penalty
+  from 10 inner folds of whole materials (the 3 images of a material are
+  always in the same fold; the penalty with the best R^2 of the held-out
+  predictions of all folds together, 10^-4 to 10^4, 4 per decade). The
+  kernel model adds the local kernel of `fit.kernel_ridge_fit` with the same
+  penalties and tau and beta from 5 inner folds of whole materials (0.5 and
+  10, as for THINGS). It has no close-pair settings: on the human data of
+  STUFF they did not improve the similarity. Pooling the folds before
+  computing R^2 matters here: the mean R^2 of the folds gave a mean r per
+  dimension of 0.753 instead of 0.776 for RN50x64, because single folds
+  with few non-zero values of a sparse dimension dominate it.
+- **The model of the paper.** `rn50x64_36d_ridge` follows
+  `predict_from_clip_ridge_newsample.m` of the paper: kernel ridge
+  regression on the z-scored RN50x64 features (std with ddof 1), lambda 1000
+  for all dimensions (chosen there from 100, 1000 and 10000), negative
+  values set to 0, and each dimension multiplied by a scale factor, the
+  least squares fit of the embedding on the paper's leave-one-material-out
+  predictions. Both are in `data/stuff_rn50x64_paper.txt`. The factors are
+  1.01 to 1.29, so they are folded into the weights and `target_mean`. With
+  the RN50x64 features of the paper, the model gives the published
+  predictions of the 48 out-of-sample images within 2e-6 (these came from
+  the 350 x 350 px images that the participants saw).
+- **The comparison** of 2026/10/26 that chose the AligNet kernel model
+  (RN50x64, SigLIP2-B/16 and AligNet SigLIP2-B, each with ridge and with the
+  kernel, leaving out one material at a time) is in `dimpred-materials`,
+  not part of this repository; the results are in
+  [docs/models.md](../docs/models.md#material-dimensions).
+
+The shipped files were built on 2026/10/26 from the images used in the
+experiment: AligNet features extracted on the cpu, RN50x64 features of the
+paper's analysis (equal to those of `dimpred.extract_features` within
+1.4e-4). Two of the 600 images on OSF differ slightly from these in their
+pixels (0027.jpg balsawood, 0168.jpg fiberboard; 19 more differ only in
+their file metadata), so a rebuild from the OSF images gives nearly but not
+exactly the shipped weights.
+
 ## Rebuilding the shipped models
 
 ```
@@ -213,6 +268,14 @@ SigLIP2-B, see [alignet/README.md](alignet/README.md).
   (1854 x 49 and 1854 x 66). The 66d embedding is the corrected version of
   January 2023.
 - `labels_49d.txt`, `labels_66d.txt`: the labels of the dimensions
+- `stuff_embedding_36d.txt`: the 36 material dimensions of the 600 STUFF
+  images (Schmidt et al., 2025; `sparse_embed_epoch0150.txt` of OSF 5gr73,
+  the dimensions with a largest value of at least 0.1, sorted by their sum,
+  as in the paper), `labels_36d.txt` their labels,
+  `stuff_image_names.txt` the images (material folder and number), in the
+  order of the rows
+- `stuff_rn50x64_paper.txt`: lambda and scale factor of each dimension of
+  the paper's model (see [above](#the-material-dimensions-130))
 
 ## The 1854 reference images
 
@@ -345,3 +408,7 @@ python -m pytest tests/test_training.py tests/test_training_data.py
   folder, the shipped `rn50x64_66d_ridge` and `alignet_siglip2b_66d_ridge`
   are also fitted again and compared with the model files (the second needs
   `features_AligNet-SigLIP2-B.npy` there).
+- `tests/test_materials.py` rebuilds the three material models and compares
+  them with the model files if `DIMPRED_STUFF_FEATURES` is the folder with
+  `features_stuff600_AligNet-SigLIP2-B.npy` and `features_stuff600_RN50x64.npy`
+  (as written by `build_material_models.py --features`).

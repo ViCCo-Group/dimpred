@@ -16,8 +16,8 @@
 %
 % Output:
 %   names: cell column with the names of the models, sorted alphabetically,
-%          e.g. {'alignet_siglip2b_66d_kernel'; 'alignet_siglip2b_66d_ridge'; ...
-%                'rn50x64_66d_elastic'; 'rn50x64_66d_ridge'; 'vitb32_66d_elastic'}
+%          e.g. {'alignet_siglip2b_36d_kernel'; 'alignet_siglip2b_36d_ridge'; ...
+%                'alignet_siglip2b_66d_kernel'; ...; 'vitb32_66d_elastic'}
 %
 % Example:
 %   names = dimpred_list_models;
@@ -31,6 +31,7 @@
 % See also DIMPRED_LOAD_MODEL
 
 % History:
+% 2026/10/26: the models of the 36 material dimensions (help text)
 % 2026/10/04: new default model alignet_siglip2b_66d_kernel (help text)
 % 2026/10/02: dimpred_rise in the help text
 % 2026/10/02: new model alignet_siglip2b_66d_ridge in the help text

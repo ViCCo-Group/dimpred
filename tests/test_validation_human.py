@@ -19,9 +19,10 @@ import numpy as np
 import pytest
 
 import dimpred
-from helpers import MODEL_NAMES, TOL_HUMAN_R, features_for, lower_triangle
+from helpers import THINGS_MODEL_NAMES, TOL_HUMAN_R, features_for, lower_triangle
 
 # History:
+# 2026/10/26: only the THINGS models (the material models: test_materials.py)
 # 2026/09/30: the threshold of the test that does not use the fixture values
 #   is now 0.80 (0.6 also passed without target_mean); the test with shuffled
 #   images moved to test_fixtures.py, since it does not test dimpred
@@ -38,7 +39,7 @@ def r_with_humans(similarity, ref):
     return np.corrcoef(lower_triangle(similarity), lower_triangle(ref["human_similarity_48nonref"]))[0, 1]
 
 
-@pytest.mark.parametrize("name", MODEL_NAMES)
+@pytest.mark.parametrize("name", THINGS_MODEL_NAMES)
 def test_predicted_similarity_correlates_with_human_similarity_as_expected(ref, name):
     features = features_for(ref, name)[rows_48nonref(ref)]
     similarity = dimpred.similarity(dimpred.predict(features, name))
@@ -48,7 +49,7 @@ def test_predicted_similarity_correlates_with_human_similarity_as_expected(ref, 
         f"{name}: r with human similarity is {r:.4f}, expected {expected:.4f} +- {TOL_HUMAN_R}")
 
 
-@pytest.mark.parametrize("name", MODEL_NAMES)
+@pytest.mark.parametrize("name", THINGS_MODEL_NAMES)
 def test_predicted_similarity_correlates_at_least_0_80_with_human_similarity(ref, name):
     # Independent of the fixture values: all models predict human similarity
     # at least about as well as the paper model (published: r = 0.81). This

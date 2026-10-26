@@ -6,6 +6,7 @@ import scipy.io
 from .list_models import list_models
 
 # History:
+# 2026/10/26: help text for the models of the 36 material dimensions
 # 2026/10/04: optional kernel part (kernel_features, kernel_coefficients,
 #   kernel_tau) and close-pair settings (close_pairs_weight,
 #   close_pairs_threshold); new default model alignet_siglip2b_66d_kernel
@@ -24,7 +25,8 @@ def load_model(model=None):
 
     Load a model, i.e. everything that is needed to predict the SPoSE
     dimensions from network features: the regression weights, the mean and
-    std of the features in the 1854 training images (for z-scoring new
+    std of the features in the training images (the 1854 THINGS reference
+    images, or the 600 STUFF images for the material models; for z-scoring new
     features), the mean of each dimension in the training images, the labels
     of the dimensions and a description of the model (info).
 

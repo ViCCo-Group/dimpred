@@ -90,6 +90,8 @@ import scipy.io
 from fit import kernel_ridge_fit, preprocess_data, train_model_with
 
 # History:
+# 2026/10/26: save_model takes the texts of the embedding, the regression and
+#   the training images from spec if given (for build_material_models.py)
 # 2026/10/04: new default model alignet_siglip2b_66d_kernel (ridge + local
 #   kernel, with the settings of the close-pair term of dimpred.similarity)
 # 2026/10/02: features are extracted on the cpu unless --device is given;
@@ -271,7 +273,8 @@ def load_published_model(published_dir):
 
 def save_model(fname, spec, weights, feature_mean, feature_scale, target_mean, labels, source, extra=None):
     """Write a model file that both dimpred_load_model.m and dimpred.load_model can read (extra: the
-    variables of a kernel model, see fit_kernel)."""
+    variables of a kernel model, see fit_kernel). spec can give the texts embedding, regression_text and
+    training_images for models that are not trained on THINGS (build_material_models.py)."""
 
     n_features, n_dims = weights.shape
     assert len(feature_mean) == n_features and len(feature_scale) == n_features, "feature statistics do not match weights"
@@ -285,9 +288,9 @@ def save_model(fname, spec, weights, feature_mean, feature_scale, target_mean, l
         preprocessing=PREPROCESSING[spec["network"]],
         n_features=float(n_features),
         n_dims=float(n_dims),
-        embedding=EMBEDDING[spec["dims"]],
-        regression=REGRESSION[spec["regression"]],
-        training_images="1854 THINGS reference images (Hebart et al., 2020)",
+        embedding=spec.get("embedding") or EMBEDDING[spec["dims"]],
+        regression=spec.get("regression_text") or REGRESSION[spec["regression"]],
+        training_images=spec.get("training_images", "1854 THINGS reference images (Hebart et al., 2020)"),
         source=source,
         note=spec["note"],
         created=time.strftime("%Y-%m-%d"),  # the day the file was built

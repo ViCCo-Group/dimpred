@@ -11,7 +11,9 @@ ridge regression plus a local kernel, i.e. a correction from the training
 images that are similar to the image in the network. For the similarity, the
 network's own similarity is added for pairs of images that are very close in
 the network (close pairs). Heatmaps (RISE) show which parts of an image drive
-its predicted dimensions.
+its predicted dimensions. Since version 1.3.0, DimPred also predicts the 36
+dimensions of human material perception (Schmidt et al., 2025) and the
+perceived similarity of materials ([Material dimensions](#material-dimensions)).
 The method and its evaluation are described in
 
 Kaniuth, P., Mahner, F. P., Perkuhn, J., & Hebart, M. N. (2025). A high-throughput
@@ -24,11 +26,11 @@ the DimPred paper, and the tests.
 
 If you used an earlier version: the training code (`fit.py`, `call.py`) is in
 [training/](training/README.md), and version 1.0.0 is the tag `v1.0.0`. What
-changed in 1.1.0 and 1.2.0: [docs/changes.md](docs/changes.md).
+changed in 1.1.0, 1.2.0 and 1.3.0: [docs/changes.md](docs/changes.md).
 
 Contents: [Installation](#installation) | [Quick start](#quick-start) |
-[Models](#models) | [More](#more) | [Citation](#citation) | [Credits](#credits) |
-[License](#license)
+[Models](#models) | [Material dimensions](#material-dimensions) | [More](#more) |
+[Citation](#citation) | [Credits](#credits) | [License](#license)
 
 ## Installation
 
@@ -206,6 +208,48 @@ optimistic; to test predictions against THINGS odd-one-out data, use
 `vitb32_66d_elastic`. The test sets and all tables:
 [docs/models.md](docs/models.md#how-well-they-predict-human-similarity).
 
+## Material dimensions
+
+The models `..._36d_...` predict the 36 dimensions of human material
+perception of Schmidt, Hebart, Schmid & Fleming (2025), learned from
+similarity judgments of the 600 images of the STUFF dataset (200 materials,
+https://osf.io/myutc). In this task, people chose which of two images is
+more similar to a reference image, so the predicted similarity uses
+`method="2afc"`:
+
+```python
+model = "alignet_siglip2b_36d_kernel"
+features = dimpred.extract_features(dimpred.find_images("my_material_images"), model)
+embedding = dimpred.predict(features, model)        # images x 36 material dimensions
+S = dimpred.similarity(embedding, method="2afc")    # images x images, predicted similarity
+```
+
+```matlab
+features = dimpred_extract_features(dimpred_find_images('my_material_images'), 'alignet_siglip2b_36d_kernel');
+embedding = dimpred_predict(features, 'alignet_siglip2b_36d_kernel');
+S = dimpred_similarity(embedding, '2afc');
+```
+
+| name | network | regression | per dimension | 48 new images |
+|---|---|---|---|---|
+| `alignet_siglip2b_36d_kernel` | AligNet SigLIP2-B | ridge + local kernel | 0.820 | 0.842 |
+| `alignet_siglip2b_36d_ridge` | AligNet SigLIP2-B | ridge | 0.806 | 0.835 |
+| `rn50x64_36d_ridge` | OpenAI CLIP RN50x64 | kernel ridge of the paper | 0.769 | 0.818 |
+
+Per dimension: mean r, leaving out one material at a time. 48 new images:
+Pearson r between predicted and human similarity for new photos of the STUFF
+materials (noise ceiling 0.975). `rn50x64_36d_ridge` is the model of the
+paper, rebuilt from its code; it gives the published predictions. The
+AligNet models predict a bit better
+([details](docs/models.md#material-dimensions)).
+
+- For images that vary only in their reflectance (e.g. renderings of one
+  shape with different materials), the predictions may not generalize as
+  well. There we recommend the Euclidean distance between the predicted
+  dimensions instead (e.g. `scipy.spatial.distance.cdist(embedding, embedding)`).
+- The models have not been tested on images of only one kind of material
+  (e.g. only woods).
+
 ## More
 
 - [Images and limitations](docs/details.md#images-and-limitations), [how the predictions are computed](docs/details.md#how-the-predictions-are-computed), [similarity](docs/details.md#similarity)
@@ -213,7 +257,7 @@ optimistic; to test predictions against THINGS odd-one-out data, use
 - [Command line](docs/details.md#command-line), [file formats](docs/details.md#file-formats), [MATLAB](docs/details.md#matlab)
 - [The models](docs/models.md), [which model was used where](docs/models.md#which-model-was-used-where)
 - [Training and reproducing the DimPred paper](training/README.md)
-- [Tests](docs/details.md#tests), [repository layout](docs/details.md#repository-layout), [changes in 1.1.0 and 1.2.0](docs/changes.md)
+- [Tests](docs/details.md#tests), [repository layout](docs/details.md#repository-layout), [changes in 1.1.0, 1.2.0 and 1.3.0](docs/changes.md)
 
 ## Citation
 
@@ -232,7 +276,11 @@ Please cite
   dimensions in the human visual system. Nature Human Behaviour 8,
   2179-2193, https://doi.org/10.1038/s41562-024-01980-y,
 - with heatmaps also Petsiuk, V., Das, A., & Saenko, K. (2018). RISE:
-  Randomized input sampling for explanation of black-box models. BMVC.
+  Randomized input sampling for explanation of black-box models. BMVC,
+- with the material models (`..._36d_...`) also Schmidt, F., Hebart, M. N.,
+  Schmid, A. C., & Fleming, R. W. (2025). Core dimensions of human material
+  perception. PNAS 122(10), e2417202122,
+  https://doi.org/10.1073/pnas.2417202122.
 
 ```
 @article{Kaniuth_2025,
@@ -253,8 +301,9 @@ Please cite
 Method and training code: Philipp Kaniuth. Model export with dimension means
 (MATLAB) and the heatmaps of the DimPred paper: Florian Mahner. The wrapper
 this package builds on: Luca Kämmer. Contier model: Oliver Contier. AligNet:
-Lukas Muttenthaler and colleagues. Package, MATLAB version, AligNet port,
-heatmaps and tests: Hebartlab.
+Lukas Muttenthaler and colleagues. Material dimensions and the STUFF
+dataset: Filipp Schmidt, Alexandra Schmid and Roland Fleming. Package, MATLAB
+version, AligNet port, heatmaps and tests: Hebartlab.
 
 ## License
 
