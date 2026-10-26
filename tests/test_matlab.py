@@ -31,6 +31,7 @@ from helpers import (DEFAULT_MODEL, IMAGES, MATLAB_CODE, MATLAB_TESTS, MODEL_NAM
                      assert_close, assert_features_match, features_for, load_mat, output_of, python_env)
 
 # History:
+# 2026/10/26: the 2afc similarity in MATLAB gives that of Python
 # 2026/10/02: dimpred_rise in MATLAB gives the maps of dimpred.rise in Python
 # 2026/10/02: AligNet features for the new default model alignet_siglip2b_66d_ridge
 # 2026/09/30: the extraction order test uses a second unsorted order
@@ -127,6 +128,7 @@ end
 out.embedding_by_name = dimpred_predict(ref.features_rn50x64, 'rn50x64_49d_ridge');
 out.embedding_default = dimpred_predict(ref.features_alignet);
 out.similarity_dot = dimpred_similarity(ref.expected_rn50x64_49d_ridge(1:10, :), 'dot');
+out.similarity_2afc = dimpred_similarity(ref.expected_alignet_siglip2b_36d_kernel(1:20, :), '2afc');
 out.found_images = dimpred_find_images('{IMAGES}');
 save('{out_file}', '-struct', 'out');
 """
@@ -182,6 +184,12 @@ def test_matlab_and_python_similarity_are_the_same(matlab_results, ref, name):
 def test_matlab_dot_similarity(matlab_results, ref):
     embedding = ref["expected_rn50x64_49d_ridge"][:10]
     assert_close(matlab_results["similarity_dot"], embedding @ embedding.T, 1e-12, "MATLAB dot similarity")
+
+
+def test_matlab_and_python_2afc_similarity_are_the_same(matlab_results, ref):
+    embedding = ref["expected_alignet_siglip2b_36d_kernel"][:20]
+    assert_close(matlab_results["similarity_2afc"], dimpred.similarity(embedding, method="2afc"), 1e-12,
+                 "MATLAB vs Python 2afc similarity")
 
 
 def test_matlab_finds_the_same_images_in_the_same_order(matlab_results):

@@ -7,7 +7,10 @@
 % into a feature vector, and one linear regression per dimension, trained
 % on the 1854 THINGS reference images, maps these features to dimension
 % values. From the predicted dimensions, we can then compute the predicted
-% perceived similarity between images.
+% perceived similarity between images. Since 1.3.0, the models
+% ..._36d_... predict the 36 dimensions of human material perception of
+% the STUFF dataset (Schmidt et al., 2025); their similarity is
+% dimpred_similarity(embedding, '2afc').
 %
 % The MATLAB functions have the names of the Python functions with the
 % prefix dimpred_ and give the same numbers. They use the model files in

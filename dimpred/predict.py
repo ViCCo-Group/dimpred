@@ -3,6 +3,7 @@ import numpy as np
 from .load_model import load_model
 
 # History:
+# 2026/10/26: help text for the models of the 36 material dimensions
 # 2026/10/04: models with a local kernel (the default model alignet_siglip2b_66d_kernel)
 # 2026/09/30: written for the first release of the package
 
@@ -16,7 +17,8 @@ def predict(features, model=None):
 
     Predict the values of the SPoSE dimensions of images from their network
     features. The features are z-scored with the mean and std of the features
-    of the 1854 training images, multiplied with the regression weights, and
+    of the training images (1854 THINGS images, or 600 STUFF images for the
+    material models), multiplied with the regression weights, and
     the mean of each dimension in the training images is added. Negative
     values are set to 0, because SPoSE dimensions are non-negative:
 

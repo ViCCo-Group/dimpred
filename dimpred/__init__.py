@@ -13,6 +13,10 @@ dimensions, we can then compute the predicted perceived similarity between
 images. With the features, similarity also uses the network's own similarity
 for pairs that are very close in the network (close pairs).
 
+Since 1.3.0, the models ..._36d_... predict the 36 dimensions of human
+material perception of the STUFF dataset (Schmidt et al., 2025), trained on
+the 600 STUFF images; their similarity is similarity(embedding, method="2afc").
+
 Functions:
     list_models       names of the models that come with dimpred
     load_model        load a model (weights, feature mean and scale, dimension means, labels, info)
@@ -34,6 +38,11 @@ Example:
     embedding = dimpred.predict(features)       # n_images x 66
     S = dimpred.similarity(embedding, features=features)  # n_images x n_images, with the close pairs
 
+    # the 36 material dimensions
+    features = dimpred.extract_features(files, "alignet_siglip2b_36d_kernel")
+    embedding = dimpred.predict(features, "alignet_siglip2b_36d_kernel")   # n_images x 36
+    S = dimpred.similarity(embedding, method="2afc")
+
 From the command line: python -m dimpred my_images --out predictions.csv
 (python -m dimpred --help lists all options)
 
@@ -43,6 +52,9 @@ of natural objects. eLife 14:RP105394.
 For the default model, please also cite AligNet: Muttenthaler, L., et al.
 (2025). Aligning machine and human visual representations across abstraction
 levels. Nature 647, 349-355.
+For the material models, please also cite Schmidt, F., Hebart, M. N., Schmid,
+A. C., & Fleming, R. W. (2025). Core dimensions of human material perception.
+PNAS 122(10), e2417202122.
 
 Hebartlab, 2026/09/30
 """
@@ -56,6 +68,8 @@ from .similarity import similarity
 from .rise import rise
 
 # History:
+# 2026/10/26: the models of the 36 material dimensions (STUFF) and the 2afc
+#   similarity (dimpred 1.3.0)
 # 2026/10/04: new default model alignet_siglip2b_66d_kernel (ridge + local
 #   kernel); similarity with the close-pair term (features)
 # 2026/10/02: rise, the RISE heatmaps of the predicted dimensions

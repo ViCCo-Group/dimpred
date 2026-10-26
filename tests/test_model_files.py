@@ -32,10 +32,14 @@ import os
 import numpy as np
 import pytest
 
-from helpers import (BENCHMARK_RIDGE_FILE, KERNEL_MODEL_NAMES, MODEL_NAMES, MODELS, MODELS_DIR, TOL_STANDARDIZER, TRAINING_DATA,
-                     assert_close, features_for, load_mat, read_lines)
+from helpers import (BENCHMARK_RIDGE_FILE, MODEL_NAMES, MODELS, MODELS_DIR, THINGS_KERNEL_MODEL_NAMES, THINGS_MODEL_NAMES,
+                     TOL_STANDARDIZER, TRAINING_DATA, assert_close, features_for, load_mat, read_lines)
 
 # History:
+# 2026/10/26: the models of the 36 material dimensions: target_mean from the
+#   STUFF embedding (times the scale factors for the model of the STUFF
+#   paper), labels; the tests of the THINGS features and of the THINGS kernel
+#   model only for the THINGS models (the others: test_materials.py)
 # 2026/10/04: the kernel model: its training features, settings and close-pair threshold
 # 2026/10/02: the ridge models are compared with the fits of the DimPred
 #   benchmark (before, only that rn50x64_66d_ridge is not the fractional
@@ -64,15 +68,20 @@ def read_model_file(name):
 def spose_embedding():
     """The SPoSE embeddings the models were trained on, by number of dimensions."""
 
-    return {n_dims: np.loadtxt(os.path.join(TRAINING_DATA, f"spose_embedding_{n_dims}d.txt")) for n_dims in (49, 66)}
+    embeddings = {n_dims: np.loadtxt(os.path.join(TRAINING_DATA, f"spose_embedding_{n_dims}d.txt")) for n_dims in (49, 66)}
+    embeddings[36] = np.loadtxt(os.path.join(TRAINING_DATA, "stuff_embedding_36d.txt"))
+    return embeddings
 
 
 @pytest.mark.parametrize("name", MODEL_NAMES)
 def test_target_mean_is_the_mean_of_the_spose_embedding(name, spose_embedding):
     model = read_model_file(name)
-    embedding = spose_embedding[MODELS[name]["n_dims"]]
-    assert_close(model["target_mean"], embedding.mean(axis=0), 1e-12,
-                 f"{name}: target_mean vs mean of spose_embedding_{MODELS[name]['n_dims']}d.txt")
+    expected = spose_embedding[MODELS[name]["n_dims"]].mean(axis=0)
+    if MODELS[name]["regression"] == "paper":
+        # the scale factors of the STUFF paper are folded into weights and target_mean (build_material_models.py)
+        expected = expected * np.loadtxt(os.path.join(TRAINING_DATA, "stuff_rn50x64_paper.txt"))[:, 1]
+    assert_close(model["target_mean"], expected, 1e-12,
+                 f"{name}: target_mean vs mean of the embedding with {MODELS[name]['n_dims']} dimensions")
 
 
 @pytest.mark.parametrize("name", REBUILT_RN50X64_MODELS)
@@ -97,7 +106,7 @@ def test_rn50x64_feature_scale_is_that_of_philipps_model(name):
         f"(relative; allowed: {TOL_STANDARDIZER:g})")
 
 
-@pytest.mark.parametrize("name", MODEL_NAMES)
+@pytest.mark.parametrize("name", THINGS_MODEL_NAMES)
 def test_z_scored_test_features_have_a_std_close_to_1(name, ref):
     # The 168 test images were not used for training, so their z-scored
     # features do not have a std of exactly 1, but close to it (1.03 to
@@ -138,7 +147,7 @@ def test_ridge_weights_are_those_of_the_benchmark_fit(name):
 
 # --- the kernel model
 
-@pytest.mark.parametrize("name", KERNEL_MODEL_NAMES)
+@pytest.mark.parametrize("name", THINGS_KERNEL_MODEL_NAMES)
 def test_kernel_model_has_the_settings_chosen_on_things(name):
     # tau and the close-pair weight were chosen on THINGS out of fold (training/build_models.py, KERNEL and
     # CLOSE_PAIRS); the other settings were tested there, so a different value means a different model
@@ -147,7 +156,7 @@ def test_kernel_model_has_the_settings_chosen_on_things(name):
     assert float(model["close_pairs_weight"]) == 8.0, f"{name}: close_pairs_weight is {model['close_pairs_weight']}"
 
 
-@pytest.mark.parametrize("name", KERNEL_MODEL_NAMES)
+@pytest.mark.parametrize("name", THINGS_KERNEL_MODEL_NAMES)
 def test_close_pairs_threshold_is_the_90th_percentile_of_the_training_cosines(name):
     model = read_model_file(name)
     train = np.asarray(model["kernel_features"], dtype=float)
@@ -157,7 +166,7 @@ def test_close_pairs_threshold_is_the_90th_percentile_of_the_training_cosines(na
         f"{name}: close_pairs_threshold {float(model['close_pairs_threshold'])}, 90th percentile {expected}")
 
 
-@pytest.mark.parametrize("name", KERNEL_MODEL_NAMES)
+@pytest.mark.parametrize("name", THINGS_KERNEL_MODEL_NAMES)
 def test_kernel_model_has_the_training_statistics_of_the_ridge_model(name):
     # the same network and training images as alignet_siglip2b_66d_ridge, so the same feature mean and std
     # (within the precision of the cached features) and the same dimension means

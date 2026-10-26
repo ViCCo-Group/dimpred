@@ -2,8 +2,9 @@
 
 Each model is one file in `dimpred/models` (see
 [Model files](details.md#model-files)) and has a network, an embedding (49 or
-66 SPoSE dimensions) and a regression. Which model to use is in the
-[README](../README.md#models).
+66 SPoSE dimensions of objects, or the 36 material dimensions, see
+[Material dimensions](#material-dimensions)) and a regression. Which model to
+use is in the [README](../README.md#models).
 
 | model | network | features | dims | regression |
 |---|---|---|---|---|
@@ -126,3 +127,66 @@ a median per-dimension r of 0.998.
 The code of the paper is in https://github.com/ViCCo-Group/dimpred_paper,
 its data and all 53 fitted models are on OSF, https://osf.io/jtekq
 (see [Reproducing the DimPred paper](../training/README.md#reproducing-the-dimpred-paper)).
+
+## Material dimensions
+
+Since 1.3.0, three models predict the 36 material dimensions of Schmidt,
+Hebart, Schmid & Fleming (2025, PNAS): the SPoSE embedding of the 600 STUFF
+images (200 materials x 3 images), learned from 1.87 million triplet 2AFC
+judgments (which of two images is more similar to a reference). Their
+similarity is `similarity(embedding, method="2afc")`
+([details](details.md#similarity)).
+
+| model | network | features | dims | regression |
+|---|---|---|---|---|
+| `alignet_siglip2b_36d_kernel` | AligNet SigLIP2-B, `pre_logits` | 768 | 36 | ridge + local kernel |
+| `alignet_siglip2b_36d_ridge` | AligNet SigLIP2-B, `pre_logits` | 768 | 36 | ridge |
+| `rn50x64_36d_ridge` | OpenAI CLIP RN50x64 | 1024 | 36 | kernel ridge of the paper |
+
+- `alignet_siglip2b_36d_kernel` predicts best. Penalties, tau (0.5) and
+  beta (10) were chosen in inner folds of whole materials. It has no
+  close-pair settings: on STUFF, the close pairs did not improve the
+  similarity.
+- `rn50x64_36d_ridge` is the model of the paper for new images, rebuilt
+  from its MATLAB code (lambda 1000, then a scale factor per dimension). It
+  gives the published predictions of the 48 out-of-sample images (within
+  2e-6).
+- All three were trained on the 600 STUFF images with
+  `training/build_material_models.py`
+  ([training/README.md](../training/README.md#the-material-dimensions-130)).
+
+How well they predict (2026/10/26). The first four columns are
+cross-validated on the 600 images, leaving out one material (its 3 images)
+at a time: the mean r per dimension, the r between the predicted similarity
+of all 600 x 600 pairs and that of the human embedding, the r with the fully
+sampled human similarity of 60 of the images, and the share of 174,000
+held-out triplets predicted correctly. The last column is the r with the
+human similarity of 48 new photos of the STUFF materials (the
+out-of-sample images of the paper), for the models trained on all 600
+images. All similarities with `method="2afc"`.
+
+| model | per dimension | 600 x 600 | 60 images | triplets | 48 new images |
+|---|---|---|---|---|---|
+| `alignet_siglip2b_36d_kernel` | 0.820 | 0.896 | 0.856 | 69.9% | 0.842 [0.787, 0.882] |
+| `alignet_siglip2b_36d_ridge` | 0.806 | 0.887 | 0.851 | 69.6% | 0.835 |
+| `rn50x64_36d_ridge` (paper) | 0.769 | 0.857 | 0.838 | 68.9% | 0.818 |
+| SigLIP2-B/16, ridge + local kernel (not shipped) | 0.799 | 0.885 | 0.861 | 69.5% | 0.826 |
+| AligNet SigLIP2-B alone (its cosine) | - | 0.765 | 0.752 | 66.6% | 0.765 |
+| the human embedding itself | 1 | 1 | 0.943 | 71.9% | - |
+| noise ceiling | - | - | 0.984 | 73.8% | 0.975 |
+
+The 95% interval of the 48 new images comes from bootstrapping images.
+Compared with the model of the paper, `alignet_siglip2b_36d_kernel` is
+better on 34 of the 36 dimensions; on the human similarity of the 48 and
+the 60 images it is better by about 0.02 (paired intervals -0.005 to 0.060
+and -0.012 to 0.048). Leaving out single images instead of whole materials
+(new photos of known materials), the mean r per dimension is 0.851 for the
+kernel model and 0.836 for the ridge. With the similarity of the paper's
+code (only one of the two images as the reference), the paper model gives
+0.788 for the 48 images, the published r = 0.79.
+
+On renderings of 100 materials on one shape (Lagunas et al., 2019, triplets
+with a reference), the 2afc similarity of the predicted dimensions was close
+to chance, while the Euclidean distance between them agreed with the
+majority answer in 72% of the triplets (`alignet_siglip2b_36d_kernel`),
+about as often as AligNet's own similarity (73%).

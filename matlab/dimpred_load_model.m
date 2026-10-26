@@ -2,7 +2,8 @@
 %
 % Load a model, i.e. everything that is needed to predict the SPoSE
 % dimensions from network features: the regression weights, the mean and
-% std of the features in the 1854 training images (for z-scoring new
+% std of the features in the training images (the 1854 THINGS reference
+% images, or the 600 STUFF images for the material models; for z-scoring new
 % features), the mean of each dimension in the training images, the labels
 % of the dimensions and a description of the model (info).
 %
@@ -65,6 +66,7 @@
 % See also DIMPRED_LIST_MODELS, DIMPRED_PREDICT
 
 % History:
+% 2026/10/26: help text for the models of the 36 material dimensions
 % 2026/10/04: optional kernel part and close-pair settings; new default
 %   model alignet_siglip2b_66d_kernel
 % 2026/10/02: new default model alignet_siglip2b_66d_ridge

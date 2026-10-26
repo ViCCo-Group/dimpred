@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dimpred"
-version = "1.2.0"
-description = "Predict the SPoSE dimensions of human object representations and perceived similarity for any image"
+version = "1.3.0"
+description = "Predict the SPoSE dimensions of human object and material representations and perceived similarity for any image"
 readme = "README.md"
 license = {file = "LICENSE"}
 requires-python = ">=3.9"

@@ -20,9 +20,12 @@ import pytest
 import scipy.io
 
 import dimpred
-from helpers import ALIGNET, DEFAULT_MODEL, KERNEL_MODEL_NAMES, LINEAR_MODEL_NAMES, MODEL_NAMES, MODELS, MODELS_DIR, load_mat
+from helpers import (ALIGNET, DEFAULT_MODEL, KERNEL_MODEL_NAMES, LINEAR_MODEL_NAMES, MODEL_NAMES, MODELS, MODELS_DIR,
+                     THINGS_KERNEL_MODEL_NAMES, load_mat)
 
 # History:
+# 2026/10/26: the models of the 36 material dimensions: the kernel model has
+#   no close-pair settings; the regression of the STUFF paper
 # 2026/10/04: the default model is alignet_siglip2b_66d_kernel; its kernel part and
 #   close-pair settings
 # 2026/10/02: no model file says it is the default (the notes went stale
@@ -94,7 +97,7 @@ CLOSE_PAIRS_KEYS = ["close_pairs_weight", "close_pairs_threshold"]
 
 
 @pytest.mark.parametrize("name", KERNEL_MODEL_NAMES)
-def test_kernel_model_has_its_kernel_part_and_close_pair_settings(name):
+def test_kernel_model_has_its_kernel_part(name):
     model = dimpred.load_model(name)
     n_train, n_features, n_dims = MODELS[name]["n_train"], MODELS[name]["n_features"], MODELS[name]["n_dims"]
     assert model["kernel_features"].shape == (n_train, n_features), f"kernel_features {model['kernel_features'].shape}"
@@ -103,6 +106,12 @@ def test_kernel_model_has_its_kernel_part_and_close_pair_settings(name):
     for key in ["kernel_features", "kernel_coefficients"]:
         assert model[key].dtype == np.float64 and np.all(np.isfinite(model[key])), f"{key} is not finite float64"
     assert isinstance(model["kernel_tau"], float) and model["kernel_tau"] > 0, f"kernel_tau {model['kernel_tau']}"
+
+
+@pytest.mark.parametrize("name", THINGS_KERNEL_MODEL_NAMES)
+def test_things_kernel_model_has_close_pair_settings(name):
+    # the material kernel model has none (on STUFF, the close pairs did not help, test_materials.py)
+    model = dimpred.load_model(name)
     assert isinstance(model["close_pairs_weight"], float) and model["close_pairs_weight"] > 0
     assert -1 < model["close_pairs_threshold"] < 1, f"close_pairs_threshold {model['close_pairs_threshold']}"
 
@@ -238,7 +247,8 @@ def test_info_number_fields_are_int_and_fit_the_arrays(name):
 REGRESSION_TEXT = {"ridge": ("penalty chosen directly", "fractional"),
                    "ridge + kernel": ("local kernel", "fractional"),
                    "fracridge": ("fractional ridge", "penalty chosen directly"),
-                   "elastic": ("elastic net", "ridge")}
+                   "elastic": ("elastic net", "ridge"),
+                   "paper": ("Schmidt et al. (2025)", "fractional")}
 
 
 @pytest.mark.parametrize("name", MODEL_NAMES)
