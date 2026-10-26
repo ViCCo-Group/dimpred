@@ -21,6 +21,12 @@
 % cfg.python and DIMPRED_PYTHON). What Python prints, e.g. one line per
 % image, is shown while it runs.
 %
+% The networks assume square input. AligNet squeezes the longer edge of a
+% non-square image, which changes its proportions; the CLIP networks
+% remove the ends of the longer edge. The models were trained on square
+% images (THINGS), so you get a warning (id dimpred:nonSquare) if some
+% images are not square; switch it off with warning('off', 'dimpred:nonSquare').
+%
 % The masks are those of the DimPred paper and of the original RISE code:
 % an 8 x 8 grid of cells, each kept with probability 0.1, upsampled
 % bilinearly and shifted at random. Unlike the original code, the maps are
@@ -107,6 +113,7 @@
 % See also DIMPRED_EXTRACT_FEATURES, DIMPRED_PREDICT, DIMPRED_FIND_IMAGES
 
 % History:
+% 2026/10/26: warning for images that are not square (id dimpred:nonSquare)
 % 2026/10/04: new default model alignet_siglip2b_66d_kernel (help text); a model
 %   struct reaches Python with its kernel part and close-pair settings
 % 2026/10/02: after review: a model struct reaches Python as it is; error
@@ -150,6 +157,7 @@ if model_is_struct
     end
 end
 model = dimpred_load_model(model);
+warn_non_square(files, full_files, model.info.network);
 
 % Python returns the maps in a .mat file, which holds at most 2 GB per
 % variable. The largest variable is dimension_maps, 4 bytes for each of
@@ -220,7 +228,7 @@ end
 % images anyway). On Windows, a command can have at most 8191 characters,
 % so there we give an error for a command that is too long.
 quoted_files = cellfun(@quote, full_files, 'UniformOutput', false);
-command = [quote(cfg.python) ' -m dimpred ' strjoin(quoted_files', ' ') ' --rise' ...
+command = [quote(cfg.python) ' -W ' quote('ignore:Not all images are square') ' -m dimpred ' strjoin(quoted_files', ' ') ' --rise' ...
     sprintf(' --n-masks %i --batch-size %i', cfg.n_masks, cfg.batch_size) ' --model ' quote(model_file) ...
     ' --out ' quote(out_file)];
 if ~isempty(cfg.png)
@@ -284,3 +292,40 @@ if ispc
 else
     arg = ['''' strrep(arg, '''', '''\''''') '''']; % in single quotes, each ' becomes '\''
 end
+
+function warn_non_square(files, full_files, network)
+% One warning (not one per image) if some images are not square, as
+% warn_non_square in Python (dimpred/extract_features.py), which is
+% switched off in Python so that it is not shown twice. AligNet squeezes
+% the longer edge of a non-square image, the CLIP networks of the models
+% remove its ends. Only the size in the file header is read (imfinfo); a
+% file that imfinfo cannot read is skipped. The sides may differ by 1% of
+% the longer side. Switch the warning off with
+% warning('off', 'dimpred:nonSquare').
+n_non_square = 0;
+for i_file = 1:numel(full_files)
+    try
+        info = imfinfo(full_files{i_file});
+    catch
+        continue
+    end
+    width = info(1).Width;
+    height = info(1).Height;
+    if abs(width - height) > 0.01 * max(width, height)
+        n_non_square = n_non_square + 1;
+        if n_non_square == 1
+            first = sprintf('%s, %i x %i', files{i_file}, width, height);
+        end
+    end
+end
+if n_non_square == 0
+    return
+end
+if strcmp(network, 'AligNet SigLIP2-B')
+    what = 'squeezes their longer edge, which changes their proportions';
+else
+    what = 'removes the ends of their longer edge';
+end
+warning('dimpred:nonSquare', ['Not all images are square: %i of %i images are not (first: %s). %s %s. ' ...
+    'The models were trained on square images (THINGS), so crop or pad your images to square if you ' ...
+    'can (docs/details.md, Non-square images).'], n_non_square, numel(files), first, network, what)

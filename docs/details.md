@@ -50,10 +50,7 @@ single objects, one for each object concept, and tested on the image sets in
 keep in mind:
 
 - Photos of single objects, as in THINGS, work best.
-- The default model resizes the whole image to a square, so the aspect ratio
-  of a non-square image is not kept. The CLIP models scale the image and crop
-  the central square, so the network does not see the parts outside it (see
-  [Feature extraction](#feature-extraction)).
+- Non-square images: see [below](#non-square-images).
 - Images are converted to RGB, which drops the alpha channel. Transparent
   areas of a PNG then get the colors stored there, often black. Put such
   images on a background first.
@@ -65,6 +62,24 @@ keep in mind:
   [Similarity](#similarity)).
 - The values of 49d and 66d models cannot be mixed, so use the same model for
   all images you want to compare.
+
+### Non-square images
+
+The networks assume square input. The AligNet models (`alignet_*`) squeeze
+the longer edge, which changes the proportions. The CLIP models
+(`rn50x64_*`, `vitb32_*`) remove the ends of the longer edge. All models were
+trained on square images (THINGS), so crop or pad your images to square if
+you can (the exact preprocessing is in
+[Feature extraction](#feature-extraction)).
+
+`extract_features` and `rise` give one warning per call if some images are
+not square (sides that differ by more than 1% of the longer side): how many,
+the first of them, and what the network does with them. Only the size in the
+file header is read. In Python, the warning is a `UserWarning` and can be
+switched off with
+`warnings.filterwarnings("ignore", message="Not all images are square")`; in
+MATLAB, its id is `dimpred:nonSquare`
+(`warning('off', 'dimpred:nonSquare')`).
 
 ## How the predictions are computed
 

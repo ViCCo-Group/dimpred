@@ -177,6 +177,13 @@ the odd-one-out experiments) with the training code in
 [training/](training/README.md). `rn50x64_49d_ridge` is not a refit but the
 published fit of the paper.
 
+**Non-square images.** The networks assume square input. The AligNet models
+(`alignet_*`) squeeze the longer edge, which changes the proportions. The CLIP
+models (`rn50x64_*`, `vitb32_*`) remove the ends of the longer edge. All
+models were trained on square images (THINGS), so crop or pad your images to
+square if you can. You get a warning if some images are not square
+([details](docs/details.md#non-square-images)).
+
 ### How well the models work on new images
 
 Mean r per dimension (10-fold cross-validation on the 1854 training images),
