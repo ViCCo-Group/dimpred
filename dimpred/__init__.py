@@ -49,12 +49,13 @@ From the command line: python -m dimpred my_images --out predictions.csv
 Reference: Kaniuth, P., Mahner, F. P., Perkuhn, J., & Hebart, M. N. (2025). A
 high-throughput approach for the efficient prediction of perceived similarity
 of natural objects. eLife 14:RP105394.
-For the default model, please also cite AligNet: Muttenthaler, L., et al.
-(2025). Aligning machine and human visual representations across abstraction
-levels. Nature 647, 349-355.
-For the material models, please also cite Schmidt, F., Hebart, M. N., Schmid,
-A. C., & Fleming, R. W. (2025). Core dimensions of human material perception.
-PNAS 122(10), e2417202122.
+For the AligNet models (alignet_*, e.g. the default model), please also cite
+AligNet: Muttenthaler, L., et al. (2025). Aligning machine and human visual
+representations across abstraction levels. Nature 647, 349-355.
+For the material models (..._36d_...), please also cite the paper of their
+dimensions: Schmidt, F., Hebart, M. N., Schmid, A. C., & Fleming, R. W.
+(2025). Core dimensions of human material perception. PNAS 122(10),
+e2417202122.
 
 Hebartlab, 2026/09/30
 """

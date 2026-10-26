@@ -27,9 +27,9 @@ License: see training/alignet/ALIGNET_MODELS_LICENSE.md (Apache 2.0 for
 software, CC-BY 4.0 for other materials; SigLIP 2 is Apache 2.0).
 Changes: the weights were converted from the TensorFlow SavedModel to
 PyTorch (safetensors), without changing their values. If you use the
-default model, please cite Muttenthaler, L., Greff, K., Born, F., Spitzer,
-B., Kornblith, S., Mozer, M. C., Mueller, K.-R., Unterthiner, T., &
-Lampinen, A. K. (2025). Aligning machine and human visual representations
+AligNet models (alignet_*, e.g. the default model), please cite
+Muttenthaler, L., Greff, K., Born, F., Spitzer, B., Kornblith, S., Mozer,
+M. C., Mueller, K.-R., Unterthiner, T., & Lampinen, A. K. (2025). Aligning machine and human visual representations
 across abstraction levels. Nature 647, 349-355, in addition to the DimPred
 paper.
 
@@ -54,6 +54,7 @@ import numpy as np
 import torch
 
 # History:
+# 2026/10/26: the citation applies to all AligNet models (help text)
 # 2026/10/02: check of the activation functions (timm version); each
 #   download goes to its own temporary file; resize_cubic converts only the
 #   rows it needs to float64

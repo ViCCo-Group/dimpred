@@ -264,23 +264,22 @@ AligNet models predict a bit better
 Please cite
 
 - the DimPred paper (below),
-- the paper of the dimensions: Hebart et al. (2023), eLife (66d), or Hebart
-  et al. (2020), Nature Human Behaviour (49d),
-- with the default model also Muttenthaler, L., Greff, K., Born, F.,
-  Spitzer, B., Kornblith, S., Mozer, M. C., Müller, K.-R., Unterthiner, T.,
-  & Lampinen, A. K. (2025). Aligning machine and human visual
-  representations across abstraction levels. Nature 647, 349-355,
-  https://doi.org/10.1038/s41586-025-09631-6,
+- the paper of the dimensions: Hebart et al. (2023), eLife (66d), Hebart
+  et al. (2020), Nature Human Behaviour (49d), or, for the material models
+  (`..._36d_...`), Schmidt, F., Hebart, M. N., Schmid, A. C., & Fleming,
+  R. W. (2025). Core dimensions of human material perception. PNAS 122(10),
+  e2417202122, https://doi.org/10.1073/pnas.2417202122,
+- with the AligNet models (`alignet_*`, e.g. the default model) also
+  Muttenthaler, L., Greff, K., Born, F., Spitzer, B., Kornblith, S., Mozer,
+  M. C., Müller, K.-R., Unterthiner, T., & Lampinen, A. K. (2025). Aligning
+  machine and human visual representations across abstraction levels.
+  Nature 647, 349-355, https://doi.org/10.1038/s41586-025-09631-6,
 - with `vitb32_66d_elastic` also Contier, O., Baker, C. I., & Hebart, M. N.
   (2024). Distributed representations of behaviour-derived object
   dimensions in the human visual system. Nature Human Behaviour 8,
   2179-2193, https://doi.org/10.1038/s41562-024-01980-y,
 - with heatmaps also Petsiuk, V., Das, A., & Saenko, K. (2018). RISE:
-  Randomized input sampling for explanation of black-box models. BMVC,
-- with the material models (`..._36d_...`) also Schmidt, F., Hebart, M. N.,
-  Schmid, A. C., & Fleming, R. W. (2025). Core dimensions of human material
-  perception. PNAS 122(10), e2417202122,
-  https://doi.org/10.1073/pnas.2417202122.
+  Randomized input sampling for explanation of black-box models. BMVC.
 
 ```
 @article{Kaniuth_2025,

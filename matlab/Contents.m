@@ -36,13 +36,19 @@
 % Reference: Kaniuth, P., Mahner, F. P., Perkuhn, J., & Hebart, M. N.
 % (2025). A high-throughput approach for the efficient prediction of
 % perceived similarity of natural objects. eLife 14:RP105394.
-% For the default model, please also cite AligNet: Muttenthaler, L., et al.
-% (2025). Aligning machine and human visual representations across
-% abstraction levels. Nature 647, 349-355.
+% For the AligNet models (alignet_*, e.g. the default model), please also
+% cite AligNet: Muttenthaler, L., et al. (2025). Aligning machine and human
+% visual representations across abstraction levels. Nature 647, 349-355.
+% For the material models (..._36d_...), please also cite the paper of
+% their dimensions: Schmidt, F., Hebart, M. N., Schmid, A. C., & Fleming,
+% R. W. (2025). Core dimensions of human material perception. PNAS 122(10),
+% e2417202122.
 %
 % Hebartlab, 2026/09/30
 
 % History:
+% 2026/10/26: the material models (dimpred 1.3.0) and their citation; the
+%   AligNet citation for all AligNet models
 % 2026/10/04: new default model alignet_siglip2b_66d_kernel; dimpred_similarity
 %   with the close pairs (features)
 % 2026/10/02: dimpred_rise, new default model alignet_siglip2b_66d_ridge
