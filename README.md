@@ -208,8 +208,8 @@ optimistic; to test predictions against THINGS odd-one-out data, use
 `vitb32_66d_elastic`. On near-scale scenes (reachspaces, Josephs et al.,
 2023), a domain the models were not trained for, the default model
 predicts human similarity well (r = 0.900 for 45 images, noise ceiling
-0.980). The test sets and all tables:
-[docs/models.md](docs/models.md#how-well-they-predict-human-similarity).
+0.980; [other domains](docs/models.md#other-domains)). The test sets and
+all tables: [docs/models.md](docs/models.md#how-well-they-predict-human-similarity).
 
 ## Material dimensions
 
@@ -254,7 +254,7 @@ AligNet models predict a bit better
   (e.g. only woods).
 - They are for images of materials. On objects and reachspaces, they predict
   human similarity much worse than the network alone
-  ([details](docs/models.md#material-dimensions)).
+  ([details](docs/models.md#other-domains)).
 
 ## More
 
