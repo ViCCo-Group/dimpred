@@ -19,6 +19,10 @@
   AligNet models squeeze the longer edge of such images, the CLIP models
   remove its ends, and all models were trained on square images
   ([details](details.md#non-square-images)). The predictions do not change.
+- Evaluation on reachspaces (near-scale scenes, Josephs, Hebart & Konkle,
+  2023), a domain none of the models were trained for: the object models
+  predict human similarity well, the material models do not; they are for
+  images of materials ([details](models.md#how-well-they-predict-human-similarity)).
 
 ## 1.2.0
 

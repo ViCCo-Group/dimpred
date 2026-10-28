@@ -102,6 +102,46 @@ on the 10 test sets the fractional ridge was better, 0.595 against 0.583).
 ridge of the paper fitted again in each fold), so not directly comparable
 with the 66d values. For the elastic net models there is no such value.
 
+**Reachspaces** (2026/10/28). To test the models on a domain they were not
+trained for, we used the 990 images of near-scale scenes (reachspaces) and
+the human odd-one-out data of Josephs, Hebart & Konkle (2023, Cognition):
+the similarity of 45 images from fully sampled triplets (26,588
+judgments), 1000 triplets with about 28 judgments each, and all 1.24
+million triplets of the 990 images. None of these images were used for
+training.
+
+| model | 45 images, r | 1000 repeated triplets | all triplets |
+|---|---|---|---|
+| `alignet_siglip2b_66d_kernel`, with the close pairs | 0.900 [0.847, 0.940] | 59.3% [57.9, 60.8] | 56.3% |
+| `alignet_siglip2b_66d_ridge` | 0.881 [0.829, 0.920] | 58.3% [56.8, 59.8] | 55.5% |
+| `vitb32_66d_elastic` | 0.817 [0.738, 0.877] | 56.9% [55.3, 58.6] | 54.4% |
+| `rn50x64_49d_ridge` | 0.771 [0.674, 0.845] | 55.3% [53.8, 57.0] | 53.6% |
+| `rn50x64_66d_ridge` | 0.823 [0.720, 0.892] | 56.6% [55.0, 58.3] | 54.2% |
+| `rn50x64_66d_elastic` | 0.835 [0.752, 0.893] | 55.8% [54.2, 57.4] | 54.4% |
+| AligNet SigLIP2-B alone (its cosine) | 0.793 | 59.5% | 56.3% |
+| the same, with the SPoSE similarity | 0.871 | 59.5% | 56.4% |
+| the embedding of Josephs et al. (fitted to 90% of the triplets) | 0.954 | 62.5% | 60.4% |
+| noise ceiling | 0.980 | 63.9% | - |
+
+- Similarity as above (SPoSE, the kernel model with the close pairs),
+  computed within the set of images people saw together. Triplets: share
+  of triplets in which the pair the people kept together has the largest
+  predicted similarity (chance 33.3%).
+- 95% intervals from bootstrapping images (45 images) or triplets (1000
+  triplets). Noise ceilings: split halves of the judgments (45 images),
+  each judgment predicted by the majority of the other judgments of the
+  same triplet (1000 triplets; 138 catch trials with an image shown twice
+  left out; the paper reports 66.3%).
+- The images are 400 x 300 and not square. Square center crops gave the
+  same results (largest difference 0.003 for the AligNet models).
+- Each model is better than the cosine of its own network (RN50x64: +0.26
+  to +0.33 on the 45 images, +5.6 to +6.9 points on the 1000 triplets;
+  ViT-B/32: +0.25 and +5.8 points), but part of this is the SPoSE
+  similarity (AligNet: 0.793 to 0.871 from the SPoSE similarity alone).
+  Against AligNet with the SPoSE similarity, `alignet_siglip2b_66d_kernel`
+  is better on the 45 images (+0.029 [0.004, 0.054]) and the same on the
+  triplets (-0.2 points [-0.9, 0.5] on the 1000, -0.1 [-0.3, 0.1] on all).
+
 ## Which model was used where
 
 | where | network | dims | regression |
@@ -184,6 +224,19 @@ and -0.012 to 0.048). Leaving out single images instead of whole materials
 kernel model and 0.836 for the ridge. With the similarity of the paper's
 code (only one of the two images as the reference), the paper model gives
 0.788 for the 48 images, the published r = 0.79.
+
+**Other domains** (2026/10/28). The material models are for images of
+materials. On objects and reachspaces they predict human similarity much
+worse than their network alone, e.g. `alignet_siglip2b_36d_kernel` 0.375
+on the 45 reachspace images above (AligNet: 0.852 with the 2afc
+similarity of its cosines; difference -0.48 [-0.65, -0.32]), 47.6% on the
+1000 reachspace triplets (AligNet 59.4%), 0.517 on K-92 (AligNet 0.862,
+both with the 2afc similarity), and 50.3% on the THINGS odd-one-out
+triplets (AligNet 61.7%). The other
+way round, `alignet_siglip2b_66d_kernel` predicts the STUFF similarity
+about as well as AligNet (0.750 on the 48 new images, AligNet 0.766 with
+the SPoSE similarity; 66.1% of all STUFF triplets, AligNet 66.2%), but
+less well than the material models (0.842).
 
 On renderings of 100 materials on one shape (Lagunas et al., 2019, triplets
 with a reference), the 2afc similarity of the predicted dimensions was close

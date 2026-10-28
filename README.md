@@ -205,7 +205,10 @@ sets never used for training and over the 8 of them without 48new and 48nonref:
 AligNet's teacher was fitted to the THINGS odd-one-out data, so its
 per-dimension r and its values on 48new and 48nonref are probably too
 optimistic; to test predictions against THINGS odd-one-out data, use
-`vitb32_66d_elastic`. The test sets and all tables:
+`vitb32_66d_elastic`. On near-scale scenes (reachspaces, Josephs et al.,
+2023), a domain the models were not trained for, the default model
+predicts human similarity well (r = 0.900 for 45 images, noise ceiling
+0.980). The test sets and all tables:
 [docs/models.md](docs/models.md#how-well-they-predict-human-similarity).
 
 ## Material dimensions
@@ -249,6 +252,9 @@ AligNet models predict a bit better
   dimensions instead (e.g. `scipy.spatial.distance.cdist(embedding, embedding)`).
 - The models have not been tested on images of only one kind of material
   (e.g. only woods).
+- They are for images of materials. On objects and reachspaces, they predict
+  human similarity much worse than the network alone
+  ([details](docs/models.md#material-dimensions)).
 
 ## More
 
