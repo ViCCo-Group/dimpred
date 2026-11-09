@@ -15,8 +15,8 @@ dimensions and the similarity of new images.
         similarity
     rose_plots.png: the measured dimensions of four objects (the SPoSE
         embedding of the object) and the dimensions predicted for a CC0
-        photo of the same object (THINGSplus, docs/images/examples and
-        tests/fixtures/images), as rose plots
+        photo of the same object (THINGSplus, docs/images/examples), as
+        rose plots
 
 The colors of the dimensions are those of Hebart et al. (2023)
 (training/data/colors_66d.txt). The 48nonref features come from
@@ -58,9 +58,9 @@ from build_models import CLOSE_PAIRS, KERNEL, fit_kernel, fit_model
 DATA = os.path.join(REPO, "training", "data")
 MODEL = "alignet_siglip2b_66d_kernel"
 # the photos of the rose plots (CC0 photos of THINGSplus) and their objects
-EXAMPLES = [("hot-air balloon", "hot-air_balloon", os.path.join(HERE, "examples", "hot-air_balloon.jpg")),
+EXAMPLES = [("peacock", "peacock", os.path.join(HERE, "examples", "peacock.jpg")),
+            ("hot-air balloon", "hot-air_balloon", os.path.join(HERE, "examples", "hot-air_balloon.jpg")),
             ("phone booth", "phone_booth", os.path.join(HERE, "examples", "phone_booth.jpg")),
-            ("barbed wire", "barbed_wire", os.path.join(REPO, "tests", "fixtures", "images", "barbed_wire.jpg")),
             ("jellyfish", "jellyfish", os.path.join(HERE, "examples", "jellyfish.jpg"))]
 
 
@@ -189,7 +189,8 @@ def plot_roses(names, images, measured, predicted, colors, labels, fname):
     import matplotlib.pyplot as plt
     from PIL import Image
     n = len(names)
-    fig, axes = plt.subplots(n, 3, figsize=(8.4, 2.87 * n), gridspec_kw=dict(wspace=0.05, hspace=0.25))
+    fig, axes = plt.subplots(n, 3, figsize=(8.4, 2.87 * n), gridspec_kw=dict(wspace=0.05, hspace=0.25),
+                             squeeze=False)
     for i, (name, image, m, p) in enumerate(zip(names, images, measured, predicted)):
         vmax = max(m.max(), p.max()) * 1.02
         ax = axes[i, 0]
