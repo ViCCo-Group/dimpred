@@ -270,6 +270,10 @@ SigLIP2-B, see [alignet/README.md](alignet/README.md).
 - `labels_49d.txt`, `labels_66d.txt`: the labels of the dimensions
 - `colors_66d.txt`: the colors of the 66 dimensions (RGB, 0 to 1) of
   Hebart et al. (2023), used in the figures of the README
+- `consistency_66d.txt`: the consistency of each of the 66 dimensions, as
+  in Extended Data Fig. 1 of Hebart et al. (2023): the largest correlation
+  with a dimension of each of 71 models fitted with other random seeds,
+  averaged after Fisher z (`docs/images/make_readme_figures.py`)
 - `stuff_embedding_36d.txt`: the 36 material dimensions of the 600 STUFF
   images (Schmidt et al., 2025; `sparse_embed_epoch0150.txt` of OSF 5gr73,
   the dimensions with a largest value of at least 0.1, sorted by their sum,

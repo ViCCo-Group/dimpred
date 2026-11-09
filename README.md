@@ -40,8 +40,10 @@ With the default model, `alignet_siglip2b_66d_kernel`:
 
 Each dimension for images that were left out of training: r between the
 predicted and the measured values, 10-fold cross-validation on the 1854
-THINGS images (mean r = 0.84). Names and colors of the dimensions as in
-Hebart et al. (2023).
+THINGS images (mean r = 0.84). The black marks show how consistent each
+dimension is: its correlation with the best matching dimension of 71 models
+that Hebart et al. (2023) fitted with other random seeds (mean r = 0.94).
+Names and colors of the dimensions as in Hebart et al. (2023).
 
 ![Measured and predicted similarity of 48 new images of THINGS objects](docs/images/similarity_48nonref.png)
 
@@ -52,9 +54,9 @@ images (r = 0.89).
 ![Measured and predicted dimensions of three objects](docs/images/rose_plots.png)
 
 The measured dimensions of three objects and the dimensions predicted for a
-photo of each object that was not used for training (the CC0 photos in
-`tests/fixtures/images`). The measured values come from the training data
-and describe the object, not this photo, so this is an illustration.
+photo of each object that was not used for training (CC0 photos of
+THINGSplus). The measured values come from the training data and describe
+the object, not this photo, so this is an illustration.
 
 AligNet's teacher was fitted to the THINGS odd-one-out data, so the values on
 THINGS objects are probably somewhat optimistic. Eight other image sets are

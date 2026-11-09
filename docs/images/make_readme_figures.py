@@ -5,7 +5,9 @@ dimensions and the similarity of new images.
     dimension_accuracy.png: r between predicted and measured values for
         each dimension, 10-fold cross-validation on the 1854 THINGS
         reference images (KFold(10, shuffle=True, random_state=0), the
-        default model refit in each fold as in training/build_models.py)
+        default model refit in each fold as in training/build_models.py),
+        and the consistency of each dimension
+        (training/data/consistency_66d.txt, see consistency below)
     similarity_48nonref.png: human similarity of the 48nonref images (48 new
         images of THINGS objects, odd-one-out judgments of the DimPred
         paper) next to the similarity predicted by the default model (with
@@ -13,15 +15,22 @@ dimensions and the similarity of new images.
         similarity
     rose_plots.png: the measured dimensions of three objects (the SPoSE
         embedding of the object) and the dimensions predicted for a CC0
-        photo of the same object (tests/fixtures/images), as rose plots
+        photo of the same object (THINGSplus, docs/images/examples and
+        tests/fixtures/images), as rose plots
 
 The colors of the dimensions are those of Hebart et al. (2023)
-(training/data/colors_66d.txt). The 48nonref and CC0 features come from
+(training/data/colors_66d.txt). The 48nonref features come from
 tests/fixtures/reference_data.mat. The 1854 reference images are not part
 of the repository; pass the folder with them with --things, either
 object_images_behavior of THINGS (aardvark.jpg, abacus.jpg, ...) or
 object_images (aardvark/aardvark_01b.jpg, ...). Their features are saved
 with --features and read from there the next time.
+
+The consistency of the dimensions is read from
+training/data/consistency_66d.txt. With --seed-models and --sortind it is
+computed again from the 72 SPoSE models that Hebart et al. (2023) fitted
+with different random seeds (folders seed00 ... seed71, the model of seed63
+left out as in their code) and saved there.
 
 Example:
     python docs/images/make_readme_figures.py --things /data/THINGS/object_images_behavior --features alignet_1854.npy
@@ -48,7 +57,10 @@ from build_models import CLOSE_PAIRS, KERNEL, fit_kernel, fit_model
 
 DATA = os.path.join(REPO, "training", "data")
 MODEL = "alignet_siglip2b_66d_kernel"
-CC0 = {"apron": "apron", "barbed_wire": "barbed wire", "burrito": "burrito"}
+# the three photos of the rose plots (CC0 photos of THINGSplus) and their objects
+EXAMPLES = [("hot-air balloon", "hot-air_balloon", os.path.join(HERE, "examples", "hot-air_balloon.jpg")),
+            ("phone booth", "phone_booth", os.path.join(HERE, "examples", "phone_booth.jpg")),
+            ("barbed wire", "barbed_wire", os.path.join(REPO, "tests", "fixtures", "images", "barbed_wire.jpg"))]
 
 
 def read_lines(fname):
@@ -88,6 +100,26 @@ def cross_validated(features, embedding):
     return predicted
 
 
+def consistency(embedding, models_dir, sortind_file):
+    """Consistency of each dimension as in Extended Data Fig. 1 of Hebart et al.
+    (2023): for each of 71 models fitted with other random seeds, the largest
+    correlation of the dimension with any dimension of that model (dimensions
+    with a value above 0.1), averaged over the models after Fisher z."""
+    import glob
+    sortind = scipy.io.loadmat(sortind_file, squeeze_me=True)["sortind"].astype(int) - 1
+    z = (embedding - embedding.mean(0)) / embedding.std(0)
+    best = []
+    for seed in range(72):
+        if seed == 63:  # left out in the paper
+            continue
+        fname = sorted(glob.glob(os.path.join(models_dir, f"seed{seed:02d}", "0.00385", "*.txt")))[-1]
+        other = np.loadtxt(fname).T
+        other = other[:, (other > 0.1).any(axis=0)][sortind]
+        other = (other - other.mean(0)) / other.std(0)
+        best.append((z.T @ other / len(z)).max(axis=1))
+    return np.tanh(np.arctanh(np.clip(np.array(best), -0.999999, 0.999999)).mean(axis=0))
+
+
 def short_label(label):
     """First part of a label, e.g. "food-related", "transportation/movement" for
     "transportation-/movement-related"."""
@@ -97,20 +129,24 @@ def short_label(label):
     return parts[0]
 
 
-def plot_accuracy(r, colors, labels, fname):
+def plot_accuracy(r, consistent, colors, labels, fname):
     import matplotlib.pyplot as plt
-    fig, ax = plt.subplots(figsize=(12, 4.2))
+    fig, ax = plt.subplots(figsize=(12, 4.4))
     x = np.arange(1, len(r) + 1)
+    from matplotlib.lines import Line2D
+    from matplotlib.patches import Patch
     ax.bar(x, r, color=colors, edgecolor="none", width=0.8)
-    ax.axhline(r.mean(), color="0.3", linestyle="--", linewidth=1)
-    ax.text(len(r) + 0.6, r.mean(), f"mean {r.mean():.2f}", va="bottom", ha="right", fontsize=9, color="0.3")
+    ax.hlines(consistent, x - 0.45, x + 0.45, color="black", linewidth=1.6)
+    ax.legend([Patch(facecolor="0.6"), Line2D([], [], color="black", linewidth=1.6)],
+              [f"prediction (mean r = {r.mean():.2f})", f"consistency of the dimension (mean r = {consistent.mean():.2f})"],
+              loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=2, fontsize=8, frameon=False)
     ax.set_xticks(x)
     ax.set_xticklabels([short_label(lab) for lab in labels], rotation=90, fontsize=7)
     ax.set_xlim(0.3, len(r) + 0.7)
     ax.set_ylim(0, 1)
     ax.set_ylabel("r (predicted, measured)")
     ax.set_title("Prediction of each of the 66 dimensions for images left out of training "
-                 "(10-fold cross-validation, 1854 THINGS images)", fontsize=10)
+                 "(10-fold cross-validation, 1854 THINGS images)", fontsize=10, pad=20)
     ax.spines[["top", "right"]].set_visible(False)
     fig.tight_layout()
     fig.savefig(fname, dpi=150)
@@ -148,16 +184,15 @@ def rose(ax, values, colors, vmax):
     ax.spines["polar"].set_color("0.85")
 
 
-def plot_roses(images, measured, predicted, colors, labels, fname):
+def plot_roses(names, images, measured, predicted, colors, labels, fname):
     import matplotlib.pyplot as plt
     from PIL import Image
     fig, axes = plt.subplots(3, 3, figsize=(8.4, 8.6), gridspec_kw=dict(wspace=0.05, hspace=0.25))
-    for i, (image, m, p) in enumerate(zip(images, measured, predicted)):
+    for i, (name, image, m, p) in enumerate(zip(names, images, measured, predicted)):
         vmax = max(m.max(), p.max()) * 1.02
         ax = axes[i, 0]
         ax.imshow(Image.open(image).convert("RGB"))
         ax.axis("off")
-        name = CC0[os.path.splitext(os.path.basename(image))[0]]
         top = np.argsort(m)[::-1][:3]
         ax.set_title(name, fontsize=11)
         ax.text(0.5, -0.04, "largest: " + ", ".join(short_label(labels[k]) for k in top), transform=ax.transAxes,
@@ -177,6 +212,8 @@ def main():
     parser.add_argument("--things", help="folder with the 1854 reference images (object_images_behavior of THINGS)")
     parser.add_argument("--features", help="file for the features of the 1854 images (.npy)")
     parser.add_argument("--out", default=HERE)
+    parser.add_argument("--seed-models", help="folder with the SPoSE models seed00 ... seed71 (to compute the consistency again)")
+    parser.add_argument("--sortind", help="sortind.mat of these models (the order of the objects)")
     args = parser.parse_args()
 
     embedding = np.loadtxt(os.path.join(DATA, "spose_embedding_66d.txt"))
@@ -188,8 +225,15 @@ def main():
     features = reference_features(args.things, args.features)
     oof = cross_validated(features, embedding)
     r = np.array([np.corrcoef(oof[:, d], embedding[:, d])[0, 1] for d in range(embedding.shape[1])])
-    print(f"per dimension: mean r {r.mean():.3f} (min {r.min():.3f}, max {r.max():.3f})")
-    plot_accuracy(r, colors, labels, os.path.join(args.out, "dimension_accuracy.png"))
+    consistency_file = os.path.join(DATA, "consistency_66d.txt")
+    if args.seed_models:
+        np.savetxt(consistency_file, consistency(embedding, args.seed_models, args.sortind), fmt="%.6f")
+    consistent = np.loadtxt(consistency_file)
+    above = np.flatnonzero(r > consistent)
+    print(f"per dimension: mean r {r.mean():.3f} (min {r.min():.3f}, max {r.max():.3f}); consistency mean "
+          f"{consistent.mean():.3f}; prediction above the consistency for {len(above)} dimensions: "
+          + ", ".join(f"{short_label(labels[d])} ({r[d]:.3f} vs {consistent[d]:.3f})" for d in above))
+    plot_accuracy(r, consistent, colors, labels, os.path.join(args.out, "dimension_accuracy.png"))
 
     # 2. similarity of the 48nonref images
     fixtures = scipy.io.loadmat(os.path.join(REPO, "tests", "fixtures", "reference_data.mat"), squeeze_me=True)
@@ -204,13 +248,13 @@ def main():
 
     # 3. rose plots of three CC0 photos
     names = read_lines(os.path.join(DATA, "reference_image_names.txt"))
-    images = [os.path.join(REPO, "tests", "fixtures", "images", f) for f in fixtures["cc0_files"]]
-    keys = [os.path.splitext(os.path.basename(f))[0] for f in images]
-    measured = [embedding[names.index(f"{k}_01b.jpg")] for k in keys]
-    predicted_cc0 = dimpred.predict(fixtures["cc0_features_alignet"], model)
-    plot_roses(images, measured, predicted_cc0, colors, labels, os.path.join(args.out, "rose_plots.png"))
-    for k, m, p in zip(keys, measured, predicted_cc0):
-        print(f"{k}: r measured vs predicted {np.corrcoef(m, p)[0, 1]:.3f}")
+    images = [f for _, _, f in EXAMPLES]
+    measured = [embedding[names.index(f"{key}_01b.jpg")] for _, key, _ in EXAMPLES]
+    predicted_examples = dimpred.predict(dimpred.extract_features(images, MODEL), model)
+    plot_roses([n for n, _, _ in EXAMPLES], images, measured, predicted_examples, colors, labels,
+               os.path.join(args.out, "rose_plots.png"))
+    for (name, _, _), m, p in zip(EXAMPLES, measured, predicted_examples):
+        print(f"{name}: r measured vs predicted {np.corrcoef(m, p)[0, 1]:.3f}")
 
 
 if __name__ == "__main__":

@@ -3,10 +3,12 @@
 ## README figures (after 1.3.0)
 
 - The README shows how well the default model works: r for each of the 66
-  dimensions, measured and predicted similarity of the 48nonref images, and
-  rose plots of three objects (`docs/images/make_readme_figures.py`,
-  colors of the dimensions in `training/data/colors_66d.txt`). The package
-  does not change.
+  dimensions next to the consistency of the dimension, measured and
+  predicted similarity of the 48nonref images, and rose plots of three
+  objects (`docs/images/make_readme_figures.py`; colors and consistency of
+  the dimensions in `training/data/colors_66d.txt` and
+  `training/data/consistency_66d.txt`, the CC0 photos in
+  `docs/images/examples`). The package does not change.
 
 ## 1.3.0
 
