@@ -28,9 +28,38 @@ If you used an earlier version: the training code (`fit.py`, `call.py`) is in
 [training/](training/README.md), and version 1.0.0 is the tag `v1.0.0`. What
 changed in 1.1.0, 1.2.0 and 1.3.0: [docs/changes.md](docs/changes.md).
 
-Contents: [Installation](#installation) | [Quick start](#quick-start) |
-[Models](#models) | [Material dimensions](#material-dimensions) | [More](#more) |
-[Citation](#citation) | [Credits](#credits) | [License](#license)
+Contents: [How well it works](#how-well-it-works) | [Installation](#installation) |
+[Quick start](#quick-start) | [Models](#models) | [Material dimensions](#material-dimensions) |
+[More](#more) | [Citation](#citation) | [Credits](#credits) | [License](#license)
+
+## How well it works
+
+With the default model, `alignet_siglip2b_66d_kernel`:
+
+![r between predicted and measured values for each of the 66 dimensions](docs/images/dimension_accuracy.png)
+
+Each dimension for images that were left out of training: r between the
+predicted and the measured values, 10-fold cross-validation on the 1854
+THINGS images (mean r = 0.84). Names and colors of the dimensions as in
+Hebart et al. (2023).
+
+![Measured and predicted similarity of 48 new images of THINGS objects](docs/images/similarity_48nonref.png)
+
+Similarity of 48 new images of THINGS objects (48nonref of the DimPred
+paper), measured with human odd-one-out judgments and predicted from the
+images (r = 0.89).
+
+![Measured and predicted dimensions of three objects](docs/images/rose_plots.png)
+
+The measured dimensions of three objects and the dimensions predicted for a
+photo of each object that was not used for training (the CC0 photos in
+`tests/fixtures/images`). The measured values come from the training data
+and describe the object, not this photo, so this is an illustration.
+
+AligNet's teacher was fitted to the THINGS odd-one-out data, so the values on
+THINGS objects are probably somewhat optimistic. Eight other image sets are
+in [How well the models work on new images](#how-well-the-models-work-on-new-images).
+The figures are made with `docs/images/make_readme_figures.py`.
 
 ## Installation
 

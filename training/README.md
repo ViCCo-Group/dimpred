@@ -268,6 +268,8 @@ SigLIP2-B, see [alignet/README.md](alignet/README.md).
   (1854 x 49 and 1854 x 66). The 66d embedding is the corrected version of
   January 2023.
 - `labels_49d.txt`, `labels_66d.txt`: the labels of the dimensions
+- `colors_66d.txt`: the colors of the 66 dimensions (RGB, 0 to 1) of
+  Hebart et al. (2023), used in the figures of the README
 - `stuff_embedding_36d.txt`: the 36 material dimensions of the 600 STUFF
   images (Schmidt et al., 2025; `sparse_embed_epoch0150.txt` of OSF 5gr73,
   the dimensions with a largest value of at least 0.1, sorted by their sum,
