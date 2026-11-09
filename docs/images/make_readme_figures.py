@@ -13,7 +13,7 @@ dimensions and the similarity of new images.
         paper) next to the similarity predicted by the default model (with
         the close pairs), objects in the order of a clustering of the human
         similarity
-    rose_plots.png: the measured dimensions of three objects (the SPoSE
+    rose_plots.png: the measured dimensions of four objects (the SPoSE
         embedding of the object) and the dimensions predicted for a CC0
         photo of the same object (THINGSplus, docs/images/examples and
         tests/fixtures/images), as rose plots
@@ -57,10 +57,11 @@ from build_models import CLOSE_PAIRS, KERNEL, fit_kernel, fit_model
 
 DATA = os.path.join(REPO, "training", "data")
 MODEL = "alignet_siglip2b_66d_kernel"
-# the three photos of the rose plots (CC0 photos of THINGSplus) and their objects
+# the photos of the rose plots (CC0 photos of THINGSplus) and their objects
 EXAMPLES = [("hot-air balloon", "hot-air_balloon", os.path.join(HERE, "examples", "hot-air_balloon.jpg")),
             ("phone booth", "phone_booth", os.path.join(HERE, "examples", "phone_booth.jpg")),
-            ("barbed wire", "barbed_wire", os.path.join(REPO, "tests", "fixtures", "images", "barbed_wire.jpg"))]
+            ("barbed wire", "barbed_wire", os.path.join(REPO, "tests", "fixtures", "images", "barbed_wire.jpg")),
+            ("jellyfish", "jellyfish", os.path.join(HERE, "examples", "jellyfish.jpg"))]
 
 
 def read_lines(fname):
@@ -138,7 +139,7 @@ def plot_accuracy(r, consistent, colors, labels, fname):
     ax.bar(x, r, color=colors, edgecolor="none", width=0.8)
     ax.hlines(consistent, x - 0.45, x + 0.45, color="black", linewidth=1.6)
     ax.legend([Patch(facecolor="0.6"), Line2D([], [], color="black", linewidth=1.6)],
-              [f"prediction (mean r = {r.mean():.2f})", f"consistency of the dimension (mean r = {consistent.mean():.2f})"],
+              ["prediction", "consistency of the dimension"],
               loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=2, fontsize=8, frameon=False)
     ax.set_xticks(x)
     ax.set_xticklabels([short_label(lab) for lab in labels], rotation=90, fontsize=7)
@@ -187,7 +188,8 @@ def rose(ax, values, colors, vmax):
 def plot_roses(names, images, measured, predicted, colors, labels, fname):
     import matplotlib.pyplot as plt
     from PIL import Image
-    fig, axes = plt.subplots(3, 3, figsize=(8.4, 8.6), gridspec_kw=dict(wspace=0.05, hspace=0.25))
+    n = len(names)
+    fig, axes = plt.subplots(n, 3, figsize=(8.4, 2.87 * n), gridspec_kw=dict(wspace=0.05, hspace=0.25))
     for i, (name, image, m, p) in enumerate(zip(names, images, measured, predicted)):
         vmax = max(m.max(), p.max()) * 1.02
         ax = axes[i, 0]
@@ -198,9 +200,9 @@ def plot_roses(names, images, measured, predicted, colors, labels, fname):
         ax.text(0.5, -0.04, "largest: " + ", ".join(short_label(labels[k]) for k in top), transform=ax.transAxes,
                 ha="center", va="top", fontsize=8)
         for j, (values, title) in enumerate([(m, "measured (the object)"),
-                                             (p, f"predicted (this photo), r = {np.corrcoef(m, p)[0, 1]:.2f}")]):
+                                             (p, "predicted (this photo)")]):
             axes[i, 1 + j].remove()
-            ax = fig.add_subplot(3, 3, 3 * i + 2 + j, projection="polar")
+            ax = fig.add_subplot(n, 3, 3 * i + 2 + j, projection="polar")
             rose(ax, values, colors, vmax)
             ax.set_title(title, fontsize=9, pad=6)
     fig.savefig(fname, dpi=120, bbox_inches="tight")
@@ -246,7 +248,7 @@ def main():
     print(f"48nonref: r = {r48:.3f}")
     plot_similarity(human, predicted, r48, os.path.join(args.out, "similarity_48nonref.png"))
 
-    # 3. rose plots of three CC0 photos
+    # 3. rose plots of the CC0 photos
     names = read_lines(os.path.join(DATA, "reference_image_names.txt"))
     images = [f for _, _, f in EXAMPLES]
     measured = [embedding[names.index(f"{key}_01b.jpg")] for _, key, _ in EXAMPLES]
